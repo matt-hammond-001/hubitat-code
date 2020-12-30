@@ -4,7 +4,7 @@ This repository contains apps for the [Hubitat Elevation](https://hubitat.com/) 
 
 ## Apps
 
-* coming soon...
+* Lighting Schedules ([README](lighting%20schedules/README.md)) | (Import URLs: [Parent app](https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/apps/lighting%20schedules/lighting-schedules-parent.groovy) and [Child app](https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/apps/lighting%20schedules/lighting-schedules-child.groovy)))
 
 
 ## How to install
@@ -17,6 +17,7 @@ Install a user app, from the Hubitat Elevation web based interface:
 
 3. Click "Save"
 
+Remember to do this for the *parent* app and then the *child* app (in that order)
 
 # Author and licence
 
