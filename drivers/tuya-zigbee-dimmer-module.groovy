@@ -62,7 +62,7 @@ metadata {
         name: "Tuya Zigbee dimmer module",
         namespace: "matthammonddotorg",
         author: "Matt Hammond",
-        description: "Driver for Tuya zigbee dimmer modules"
+        description: "Driver for Tuya zigbee dimmer modules",
         documentationLink: "https://github.com/matt-hammond-001/hubitat-code/blob/master/drivers/tuya-zigbee-dimmer-module.README.md"
     ) {
 
