@@ -285,7 +285,7 @@ def off() {
     }
 }
 
-def Toggle() {
+def toggle() {
     if (isParent()) {
         return cmdSwitchToggle(indexToChildDni(0))
     } else {
