@@ -4,10 +4,11 @@ This is a driver for *Tuya zigbee lighting dimmer modules* for the [Hubitat Elev
 
 Currently supported devices:
 
-| Model                | Description                      |
-| :------------------- | :------------------------------- |
-| _TYZB01_qezuin6k     | 1 channel (1-gang) module        |
-| _TYZB01_v8gtiaed     | 2 channel (2-gang) module        |
+| Model                     | What                             | Identifies via Zigbee as        |
+| :------------------------ | :------------------------------- | :------------------------------ |
+| QS-Zigbee-D02-TRIAC-LN    | 1 channel (1-gang) dimmer module | TS110F <br/> `_TYZB01_qezuin6k` |
+| QS-Zigbee-D02-TRIAC-2C-LN | 2 channel (2-gang) dimmer module | TS110F <br/> `_TYZB01_v8gtiaed` |
+
 
 ## How to install
 
@@ -17,8 +18,8 @@ Install this code as a user driver, from the Hubitat Elevation web based interfa
 
 2. Enter the Import URL then click "Import"
 
-   `https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/drivers/tuya-zigbee-dimmer-module.groovy`
-   
+   https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/drivers/tuya-zigbee-dimmer-module.groovy
+
 3. Click "Save"
 
 
