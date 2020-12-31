@@ -60,11 +60,34 @@ preferences {
 def main(){
     dynamicPage(name: "main", title: "Lighting Schedule", uninstall: true, install: true){
         section("<b>General</b>") {
-            input "appLabel", "text", title: "Name for this application", multiple: false, required: true, submitOnChange: true
-            input "switches", "capability.switch", title: "Control which switches?", multiple: true, required: false, submitOnChange: true
+            input "appLabel",
+                "text",
+                title: "Name for this application",
+                multiple: false,
+                required: true,
+                submitOnChange: true
+
+            input "paused",
+                "bool",
+                title: "Pause this schedule",
+                multiple: false,
+                required: true,
+                defaultValue: false
+
+            input "switches",
+                "capability.switch",
+                title: "Control which switches?",
+                multiple: true,
+                required: false,
+                submitOnChange: true
         }
         section("<b>Switching behaviour</b>") {
-            input "periodBehaviour", "enum", title: "During specified periods...", multiple: false, required: true, defaultValue:"duringOn",
+            input "periodBehaviour",
+                "enum",
+                title: "During specified periods...",
+                multiple: false,
+                required: true,
+                defaultValue:"duringOn",
                 options: [
                     "duringOn" : "Check and turn ON regularly.",
                     "entryOn": "Check and turn ON only when was previously not in a period.",
@@ -72,7 +95,13 @@ def main(){
                     "entryOff": "Check and turn OFF only when was previously not in a period.",
                     "ignore": "Do nothing",
                 ]
-            input "noPeriodBehaviour", "enum", title: "At other times...", multiple: false, required: true, defaultValue:"duringOff",
+
+            input "noPeriodBehaviour",
+                "enum",
+                title: "At other times...",
+                multiple: false,
+                required: true,
+                defaultValue:"duringOff",
                 options: [
                     "duringOn" : "Check and turn ON regularly.",
                     "entryOn": "Check and turn ON only when was previously in a period.",
@@ -80,19 +109,41 @@ def main(){
                     "entryOff": "Check and turn OFF only when was previously in a period.",
                     "ignore": "Do nothing",
                 ]
-            input "activeAlways", "bool", title: "Active in all modes", multiple: false, required:true, defaultValue:true, submitOnChange:true
+
+            input "activeAlways",
+                "bool",
+                title: "Active in all modes",
+                multiple: false,
+                required: true,
+                defaultValue: true,
+                submitOnChange: true
+            
             if (activeAlways!=null && !activeAlways) {
-                input "activeModes", "mode", title: "Active in these modes (can choose more than one)", multiple: true, required: false
-            }
-            if (activeAlways!=null && !activeAlways) {
-                input "activateBehaviour", "enum", title: "When becoming ACTIVE due to a MODE change...", multiple: false, required: true, defaultValue: "both",
+                input "activeModes",
+                    "mode",
+                    title: "Active in these modes (can choose more than one)",
+                    multiple: true,
+                    required: false
+
+                input "activateBehaviour",
+                    "enum",
+                    title: "When becoming ACTIVE due to a MODE change...",
+                    multiple: false,
+                    required: true,
+                    defaultValue: "both",
                     options: [
                         "both": "Immediately turn ON or OFF according to the schedule",
                         "on": "Immediately turn ON only, according to the schedule",
                         "off": "Immediately turn OFF only, according to the schedule",
                         "nothing": "Do nothing immediately.",
                     ]
-                input "deactivateBehaviour", "enum", title: "When becoming INACTIVE due to a MODE change...", multiple: false, required: true, defaultValue: "nothing",
+
+                input "deactivateBehaviour",
+                    "enum",
+                    title: "When becoming INACTIVE due to a MODE change...",
+                    multiple: false,
+                    required: true,
+                    defaultValue: "nothing",
                     options: [
                         "allOn": "Turn all ON immediately",
                         "allOff": "Turn all OFF immediately",
@@ -121,15 +172,29 @@ def main(){
                         info = "&nbsp;&nbsp;<span style='color: red'>Value not valid</span>"
                     }
                     def title = dev.label != null && dev.label != "" ? dev.label : dev.name
-                    input fieldName, "text", title: "<span style='font-size:smaller; color: #888'>${title}</span>"+info, multiple: false, required: false, submitOnChange: true
+                    
+                    input fieldName,
+                        "text",
+                        title: "<span style='font-size:smaller; color: #888'>${title}</span>"+info,
+                        multiple: false,
+                        required: false,
+                        submitOnChange: true
             }
         }
 
         section("<b>Logging</b>") {
-            input "infoEnable", "bool", title: "Enable activity logging", required: false, defaultValue: false
+            input "infoEnable",
+                "bool",
+                title: "Enable activity logging",
+                required: false,
+                defaultValue: false
         }
         section("<b>Debugging</b>") {
-            input "debugEnable", "bool", title: "Enable debug logging", required: false, defaultValue: false
+            input "debugEnable",
+                "bool",
+                title: "Enable debug logging", 
+                required: false,
+                defaultValue: false
         }
     }
 }
@@ -182,6 +247,7 @@ Standard handlers, and mode-change handler
 */
 
 def installed() {
+    logDebug "installed()"
     state.wasInPeriod = [:]
     state.wasActive = null
     initialize()
@@ -189,11 +255,16 @@ def installed() {
 
 
 def updated() {
+    logDebug "updated()"
+    def pauseText = "";
     unsubscribe()
+    if (settings.paused) {
+        pauseText = ' <span style="color: red;">(Paused)</span>'
+    }
     if (settings.appLabel) {
-        app.updateLabel("${settings.appLabel}")
+        app.updateLabel("${settings.appLabel}${pauseText}")
     } else {
-        app.updateLabel("Schedule")
+        app.updateLabel("Schedule${pauseText}")
     }
     scrubUnusedSettings()
     initialize()
@@ -201,11 +272,13 @@ def updated() {
 
 
 def initialize() {
+    logDebug "initialize()"
     subscribe location, "mode", modeChangeHandler
     update(true)
 }
 
 def uninstalled() {
+    logDebug "uninstalled()"
 }
 
 
@@ -239,7 +312,8 @@ Whenever there is a change/update
 */
 
 def update(modeChanged=false) {
-    def isActive = activeAlways || activeModes.any {v -> v == location.mode}
+    logDebug "update() - paused=${paused} activeAlways=${activeAlways} mode=${location.mode} modeChanged=${modeChanged}"
+    def isActive = !paused && (activeAlways || activeModes.any {v -> v == location.mode})
     
     if (isActive) {
         logDebug "Active in mode $location.mode"
@@ -261,6 +335,9 @@ Determine and make changes
 */
 
 def updateLights() {
+    if (paused) {
+        return
+    }
     def isActive = activeAlways || activeModes.any {v -> v == location.mode}
     def activeChanged = isActive != state.wasActive
 

@@ -4,6 +4,16 @@ This is an app for the [Hubitat Elevation](https://hubitat.com/) platform.
 
 It provides an easy way to schedule on/off switch devices such as lights according to timings.
 
+* Timings are written simply and quickly like this:
+   ```
+   sunrise-20 - 0720, 13:00-14:00, sunset+30 - 00:00
+   ```
+
+* It can be set to be active at all times, or only for certain *modes*. 
+
+* It can be set to constantly force lights on/off, or to only turn them on/off at the start or end of the timing periods you defined.
+
+
 ## How to install
 
 Install this code as a custom application, from the Hubitat Elevation web based interface:
@@ -27,9 +37,11 @@ NOTE: You must install the parent app before the child app.
 
 ### Choosing switches
 
-Allows you to select a set of on/off switch devices and type in simple timing rules defining when they should be switched on and off.
+Select a set of on/off switch devices that will be controlled.
 
 ### Specifying time periods
+
+For each switch, enter a set of simple timing intervals to describe when the lights should be on or off.
 
 For each switch you can type in one or more time periods, separated nby spaces or commas. Each time period is witten in the form *START_TIME - END_TIME* where the start
 and end times can be:
@@ -54,6 +66,29 @@ Choose what modes it should be active within. If it is not active in all modes, 
 
 When active, you can set whether it causes switches to be switched on/off when a period begins, or ends, or during the whole time. This allows you, for example, to create a setup that will ensure a light gets turned off at certain times, but doesn't repeatedly force it to be on or off during the whole time of a period, or outside of a period.
 
+## Examples
+
+### When at home, ensure outdoor light stays on during evening and off at all other times
+
+   * Switching behaviour:
+      * During specified periods: *Check and turn ON regularly*
+      * At other times: *Check and turn OFF regularly*
+      * Active in all modes: *no*
+      * Active in modes: *At HOME*
+      * When becoming ACTIVE due to a MODE change: *Immediately turn ON or OFF according to the schedule*
+      * When becoming INACTIVE due to a MODE change: *Turn all OFF immediately*
+   * Timings
+      * *sunset-30 - 00:00*
+
+
+### Ensure a light gets turned off at midnight and at 1am, but isn't controlled at other times:
+
+   * Switching behaviour:
+      * During specified periods: *Check and turn oOFF only when previously not in a period.* 
+      * At other times: *Do nothing*
+      * Active in all modes: *yes* 
+   * Timings
+      * *00:00-00:30, 01:00-01:30*
 
 
 ## Author and licence
