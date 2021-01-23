@@ -203,7 +203,7 @@ def createChildDevices() {
         logInfo "Creating child ${i} with dni ${dni}"
         
         addChildDevice(
-            "Tuya Zigbee dimmer module V2",
+            "Tuya Zigbee dimmer module",
             dni,
             [
                 completedSetup: true,
