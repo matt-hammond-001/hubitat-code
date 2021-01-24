@@ -1,0 +1,30 @@
+{
+  "author": "Matt Hammond",
+  "gitHubUrl": "https://github.com/matt-hammond-001/hubitat-code",
+  "payPalUrl": "https://www.paypal.com/donate?hosted_button_id=C2QYRBG8FF4XN",
+  "packages": [
+    {
+      "id": "7c119a75-ecec-43a1-94d3-29cee369c2c4",
+      "name": "Lighting Schedules",
+      "category": "Control",
+      "location": "https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/apps/lighting%20schedules/hpm-manifest.json",
+      "description": "Schedule on/off timings for groups of switches/lights by simply typing in the timings",
+      "tags": [
+        "Lights & Switches",
+        "Zigbee",
+        "Timers"
+      ]
+    },
+    {
+      "id": "64b9f13d-2879-49bd-a5ab-c0eb84706c6f",
+      "name": "Tuya Zigbee dimmer modules",
+      "category": "Control",
+      "location": "https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/drivers/tuya-zigbee-dimmer-module.hpm-manifest.json",
+      "description": "Driver for Tuya 1-gang and 2-gang dimmer modules",
+      "tags": [
+        "Lights & Switches",
+        "Zigbee"
+      ]
+    }
+  ]
+}
