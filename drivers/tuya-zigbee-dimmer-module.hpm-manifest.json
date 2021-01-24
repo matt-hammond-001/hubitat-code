@@ -1,0 +1,20 @@
+{
+  "packageName": "Tuya zigbee dimmer modules",
+  "author": "Matt Hammond",
+  "version": "0.02",
+  "minimumHEVersion": "0.0",
+  "licenseFile": "https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/LICENSE",
+  "documentationLink": "https://github.com/matt-hammond-001/hubitat-code/blob/master/drivers/tuya-zigbee-dimmer-module.README.md",
+  "communityLink": "https://community.hubitat.com/t/release-tuya-1-gang-and-2-gang-dimmer-module-driver/60372",
+  "dateReleased": "2021-01-24",
+  "drivers": [
+    {
+      "id": "decd3e44-bcc8-4321-8175-8db0c62450a1",
+      "name": "Tuya Zigbee dimmer module",
+      "namespace": "matthammonddotorg",
+      "location": "https://raw.githubusercontent.com/matt-hammond-001/hubitat-code/master/drivers/tuya-zigbee-dimmer-module.groovy",
+      "required": true,
+      "version": "0.02"
+    }
+  ]
+}
