@@ -549,8 +549,11 @@ def parseTimings(timingString) {
             
             if (startTime.before(endTime)) {
                 timings += [[ startTime, endTime ]]
-                timingString = remainder
             }
+            timingString = remainder
+
+        } else {
+            timingString = ""
         }
     }
     timings.sort()
