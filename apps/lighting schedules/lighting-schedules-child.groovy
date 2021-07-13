@@ -567,8 +567,8 @@ def parseTimings(timingString) {
     
 
 def calcStartEndTimes(today, sH, sM, sR, sO, eH, eM, eR, eO) {
-    (start, sType) = calcTime(today, sH, sM, sR, sO)
-    (end, eType)   = calcTime(today, eH, eM, eR, eO)
+    (start, sType, refStart) = calcTime(today, sH, sM, sR, sO)
+    (end, eType, refEnd)     = calcTime(today, eH, eM, eR, eO)
 
     // intelligently handle edge cases when one timespec is relative to sunrise or sunset
     if (sType == ABS && eType == SUNRISE) {
@@ -585,17 +585,26 @@ def calcStartEndTimes(today, sH, sM, sR, sO, eH, eM, eR, eO) {
         }
     }
     
+    // if user specified end was specified as being before start time
+    // and wasn't due to user not anticipating variability in sunrise/sunset,
+    // then compensate by shuffling end time to be the next day
+    if (refEnd.before(refStart) && end.before(start)) {        
+        end.add(Calendar.DAY_OF_YEAR,1)
+    }
+
     // if it was in the past, make it the future
     if (end.before(today.now)) {
         start.add(Calendar.DAY_OF_YEAR, 1)
         end.add(Calendar.DAY_OF_YEAR, 1)
     }
+
     return [start,end]
 }
             
 def calcTime(today, hrs, mins, relTo, offsetMins) {
     def t = Calendar.getInstance()
     def type = ABS
+    def ref_t
     
     if (hrs != null && mins != null) {
         t.set(Calendar.HOUR_OF_DAY, hrs.toInteger())
@@ -620,10 +629,15 @@ def calcTime(today, hrs, mins, relTo, offsetMins) {
 
     if (type != ABS) {
         t = today[relTo].clone()
+        ref_t = t.clone()
         if (offsetMins != null && offsetMins != "") {
             t.add(Calendar.MINUTE, offsetMins.toInteger())
         }
+    } else{
+        ref_t = t.clone()
     }
     
-    return [t, type]
+    // ref_t is the time before offset is applied. Give indication as to users' thinking
+
+    return [t, type, ref_t]
 }
