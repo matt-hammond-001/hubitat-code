@@ -256,17 +256,7 @@ def installed() {
 
 def updated() {
     logDebug "updated()"
-    def pauseText = "";
     unsubscribe()
-    if (settings.paused) {
-        pauseText = ' <span style="color: red;">(Paused)</span>'
-    }
-    if (settings.appLabel) {
-        app.updateLabel("${settings.appLabel}${pauseText}")
-    } else {
-        app.updateLabel("Schedule${pauseText}")
-    }
-    scrubUnusedSettings()
     initialize()
 }
 
@@ -312,6 +302,17 @@ Whenever there is a change/update
 */
 
 def update(modeChanged=false) {
+    def pauseText = "";
+    if (settings.paused) {
+        pauseText = ' <span style="color: red;">(Paused)</span>'
+    }
+    if (settings.appLabel) {
+        app.updateLabel("${settings.appLabel}${pauseText}")
+    } else {
+        app.updateLabel("Schedule${pauseText}")
+    }
+    scrubUnusedSettings()
+
     logDebug "update() - paused=${paused} activeAlways=${activeAlways} mode=${location.mode} modeChanged=${modeChanged}"
     def isActive = !paused && (activeAlways || activeModes.any {v -> v == location.mode})
     
