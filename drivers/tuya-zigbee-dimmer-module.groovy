@@ -44,12 +44,25 @@ import groovy.transform.Field
 
 @Field static def modelConfigs = [
     "_TYZB01_v8gtiaed": [
+        inClusters: "0000,0004,0005,0006,0008",
+        outClusters: "0019,000A",
+        model: "TS110F",
         numEps: 2,
         joinName: "Tuya Zigbee 2-Gang Dimmer module"
     ],
     "_TYZB01_qezuin6k": [
+        inClusters: "0000,0004,0005,0006,0008",
+        outClusters: "0019,000A",
+        model: "TS110F",
         numEps: 1,
         joinName: "Tuya Zigbee 1-Gang Dimmer module"
+    ],
+    "_TZE200_e3oitdyu": [
+        inClusters: "0000,0004,0005,EF00",
+        outClusters: "0019,000A",
+        model: "TS0601",
+        numEps: 2,
+        joinName: "Moes 2-Gang Dimmer module"
     ],
 ]
     
@@ -76,9 +89,9 @@ metadata {
         
         modelConfigs.each{ data ->
             fingerprint profileId: "0104",
-                inClusters: "0000,0004,0005,0006,0008",
-                outClusters:"0019,000A",
-                model:"TS110F",
+                inClusters: data.value.inClusters,
+                outClusters: data.value.outClusters,
+                model: data.value.model,
                 manufacturer: data.key,
                 deviceJoinName: data.value.joinName
         }
