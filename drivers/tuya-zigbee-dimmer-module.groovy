@@ -47,6 +47,10 @@ import groovy.transform.Field
         numEps: 2,
         joinName: "Tuya Zigbee 2-Gang Dimmer module"
     ],
+    "_TZ3000_7ysdnebc": [
+        numEps: 2,
+        joinName: "Tuya Zigbee 2-Gang Dimmer module"
+    ],
     "_TYZB01_qezuin6k": [
         numEps: 1,
         joinName: "Tuya Zigbee 1-Gang Dimmer module"

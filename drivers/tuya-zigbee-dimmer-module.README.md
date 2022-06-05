@@ -7,7 +7,7 @@ Currently supported devices:
 | Model                     | What                             | Identifies via Zigbee as        |
 | :------------------------ | :------------------------------- | :------------------------------ |
 | QS-Zigbee-D02-TRIAC-LN    | 1 channel (1-gang) dimmer module | TS110F <br/> `_TYZB01_qezuin6k` |
-| QS-Zigbee-D02-TRIAC-2C-LN | 2 channel (2-gang) dimmer module | TS110F <br/> `_TYZB01_v8gtiaed` |
+| QS-Zigbee-D02-TRIAC-2C-LN | 2 channel (2-gang) dimmer module | TS110F <br/> `_TYZB01_v8gtiaed` <br/> TS1101 <br/> `_TZ3000_7ysdnebc` |
 | QS-Zigbee-D02-TRIAC-2C-L  | 2 channel (2-gang) dimmer module (no neutral) | TS110F <br/> `_TZ3000_92chsky7` |
 
 
