@@ -207,7 +207,7 @@ def createChildDevices() {
         // create child devices
         def i = getChildDevices().size()
         def endpointId = indexToEndpointId(i)
-        def dni = indexToChildDni(i)
+        def dni = "${device.deviceNetworkId}-${endpointId}" 
         logInfo "Creating child ${i} with dni ${dni}"
         
         addChildDevice(
@@ -467,19 +467,18 @@ def endpointIdToIndex(i) {
 }
 
 def endpointIdToChildDni(endpointId) {
-    return "${device.deviceNetworkId}-${endpointId}"
+    def i = endpointIdToIndex(endpointId)
+    return getChildDevices()[i].getDeviceNetworkId()
 }
 
 def indexToChildDni(i) {
-    return endpointIdToChildDni(indexToEndpointId(i))
+    return getChildDevices()[i].getDeviceNetworkId()
 }
 
 def childDniToEndpointId(childDni) {
     def match = childDni =~ childDniPattern
     if (match) {
-        if (match[0][1] == device.deviceNetworkId) {
-            return match[0][2]
-        }
+        return match[0][2]
     }
     return null
 }
