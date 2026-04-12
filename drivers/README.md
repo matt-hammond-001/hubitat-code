@@ -16,7 +16,6 @@ Install a user driver, from the Hubitat Elevation web based interface:
 
 3. Click "Save"
 
-
 # Author and licence
 
 Copyright (c) 2020, Matt Hammond
