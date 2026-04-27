@@ -1,7 +1,7 @@
 /* 
 =============================================================================
 Hubitat Elevation Driver for
-Tuya Zigbee dimmer modules (1-Gang and 2-Gang)
+Tuya/Girier Zigbee dimmer modules (1-Gang and 2-Gang)
 
     https://github.com/matt-hammond-001/hubitat-code
 
@@ -45,20 +45,29 @@ import groovy.transform.Field
 @Field static def modelConfigs = [
     "_TYZB01_v8gtiaed": [
         numEps: 2,
-        joinName: "Tuya Zigbee 2-Gang Dimmer module"
+        joinName: "Tuya Zigbee 2-Gang Dimmer module",
+        model: "TS110F",
     ],
     "_TZ3000_7ysdnebc": [
         numEps: 2,
-        joinName: "Tuya Zigbee 2-Gang Dimmer module"
+        joinName: "Tuya Zigbee 2-Gang Dimmer module",
+        model: "TS110F",
     ],
     "_TYZB01_qezuin6k": [
         numEps: 1,
-        joinName: "Tuya Zigbee 1-Gang Dimmer module"
+        joinName: "Tuya Zigbee 1-Gang Dimmer module",
+        model: "TS110F",
     ],
     "_TZ3000_92chsky7": [
         numEps: 2,
-        joinName: "Tuya Zigbee 2-Gang Dimmer module (no-neutral)"
-    ]
+        joinName: "Tuya Zigbee 2-Gang Dimmer module (no-neutral)",
+        model: "TS110F",
+    ],
+    "_TZ3210_3mpwqzuu": [
+        numEps: 2,
+        joinName: "Girier 2-Gang Dimmer module",
+        model: "TS110E",
+    ],
 ]
     
 def config() {
@@ -67,10 +76,10 @@ def config() {
 
 metadata {
     definition (
-        name: "Tuya Zigbee dimmer module",
+        name: "Tuya/Girier Zigbee dimmer module",
         namespace: "matthammonddotorg",
         author: "Matt Hammond",
-        description: "Driver for Tuya zigbee dimmer modules",
+        description: "Driver for Tuya/Girier zigbee dimmer modules",
         documentationLink: "https://github.com/matt-hammond-001/hubitat-code/blob/master/drivers/tuya-zigbee-dimmer-module.README.md"
     ) {
 
@@ -86,7 +95,7 @@ metadata {
             fingerprint profileId: "0104",
                 inClusters: "0000,0004,0005,0006,0008",
                 outClusters:"0019,000A",
-                model:"TS110F",
+                model: data.value.model,
                 manufacturer: data.key,
                 deviceJoinName: data.value.joinName
         }
