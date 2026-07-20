@@ -464,7 +464,10 @@ def _modbus_do_keepAlive() {
     _modbus_logDebug "Calling keepAlive()"
     def promise = invoke "keepAlive";
     if (promise != null)
-    	promise.catch { e -> runIn(MB.reconnectDelaySecs, "modbus_reconect") }
+    	promise.catch { e -> 
+            _modbus_logWarn "Invoking reconnect due to keepalive failure"
+            runIn(MB.reconnectDelaySecs, "modbus_reconnect")
+        }
 }
 
 // ------------------------------------------------------------------------
