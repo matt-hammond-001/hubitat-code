@@ -165,7 +165,7 @@ Map Promise(taskOrResolution=null) {
 		}
 	}
 
-	Closure _reject= {
+	Closure _reject= { it=null ->
 		if (!fulfilled) {
 			if (!rejected) {
                 if (it instanceof Exception) {
@@ -193,7 +193,8 @@ Map Promise(taskOrResolution=null) {
 						if (onFulfilled instanceof Closure) {
 							def r = onFulfilled(*args)
 							if (r instanceof Map && r?.__is_promise__ == true) {
-								r.then( it.resolve ).catch( it.reject )
+								r.then( it.resolve )
+								r.catch( it.reject )
 							} else {
 								it.resolve(r)
 							}
@@ -211,7 +212,8 @@ Map Promise(taskOrResolution=null) {
 						if (onRejected instanceof Closure) {
 							def r = onRejected(arg)
 							if (r instanceof Map && r?.__is_promise__ == true) {
-								r.then( it.resolve ).catch( it.reject )
+								r.then( it.resolve )
+								r.catch( it.reject )
 							} else {
 								it.resolve(r)
 							}
@@ -225,8 +227,14 @@ Map Promise(taskOrResolution=null) {
 					}
 				}
 			}
-			if (fulfilled) { _resolve() }
-			if (rejected) { _reject() }
+			if (!pending) {
+				Map P = _promise_ensureData()
+				if (fulfilled)
+				    P.promiseTasks.add([task:_resolve, param:null])
+				if (rejected)
+				    P.promiseTasks.add([task:_reject, param:null])
+				runIn(0, "_promiseTaskRunner", [misfire: true])
+			}
 		}
 	}
 
