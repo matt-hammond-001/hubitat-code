@@ -28,6 +28,7 @@ class PromiseTests extends GroovyTestCase {
          trace: [],
       ]
 
+      // add mocks to p
       p.app = [id:5]
       p.log = [
          error: { it -> logs.error.add it },
@@ -43,7 +44,8 @@ class PromiseTests extends GroovyTestCase {
          assertEquals(when,0)
          assertEquals(opts?.misfire,true)
          tasks.add(methodName) }
-      
+
+      // manually pump mock runIn() 
       pump = {
          while (tasks.size()) {
             String task = tasks.pop()
@@ -77,8 +79,18 @@ class PromiseTests extends GroovyTestCase {
       assertTrue("Resolved", resolved)
    }
 
-   void testPromiseResolvesNotArrayOrListArgsThen() {
-      for(def v in [5 as byte, 5 as Number, 5.5 as float, "hello" as String, true as boolean, [a:5] as Map, new Exception("hello")]) {
+   void testPromiseResolvesNoArgThenSpread() {
+      setup();
+      boolean resolved=false
+      p.Promise { it -> it.resolve() }
+      .then_spread { resolved = true; assertEquals("No argument to resolve passes [null] to then_spread()", it, null)}
+      assertFalse("Not yet resolved", resolved)
+      pump()
+      assertTrue("Resolved", resolved)
+   }
+
+   void testPromiseResolvesAnyArgsThen() {
+      for(def v in [5 as byte, 5 as Number, 5.5 as float, "hello" as String, true as boolean, [a:5] as Map, new Exception("hello"), [1,2,3] as int[], [1,2,3] as List<int>]) {
          setup();
          boolean resolved=false
          p.Promise { it -> it.resolve(v) }
@@ -89,12 +101,25 @@ class PromiseTests extends GroovyTestCase {
       }
    }
 
-   void testPromiseResolvesArrayOrListArgThen() {
+      void testPromiseResolvesNotArrayOrListArgsThenSpread() {
+      for(def v in [5 as byte, 5 as Number, 5.5 as float, "hello" as String, true as boolean, [a:5] as Map, new Exception("hello")]) {
+         setup();
+         boolean resolved=false
+         p.Promise { it -> it.resolve(v) }
+         .then_spread { ...args -> resolved = true; assertEquals("${v} argument to resolve passes [${v}] to then_spread()", args, [v])}
+         assertFalse("Not yet resolved", resolved)
+         pump()
+         assertTrue("Resolved", resolved)
+      }
+   }
+
+
+   void testPromiseResolvesArrayOrListArgThenSpread() {
       for(def v in [ [1,2,3] as int[], [1,2,3] as List<int>]) {
          setup();
          boolean resolved=false
          p.Promise { it -> it.resolve([1,2,3]) }
-         .then { ...args -> resolved = true; assertEquals("${v} argument to resolve passes as separate args ${args} to then()", args, v) };
+         .then_spread { ...args -> resolved = true; assertEquals("${v} argument to resolve passes as separate arg ${args} to then_spread()", args, v) };
          assertFalse("Not yet resolved", resolved)
          pump()
          assertTrue("Resolved", resolved)
@@ -169,7 +194,7 @@ class PromiseTests extends GroovyTestCase {
       p.Promise(5)
       .then { it -> seq += ["then1", it]; return "hello" }
       .then { it -> seq += ["then2", it]; return [1,2,3] }
-      .then { ...args -> seq += ["then3", args]; return null }
+      .then { args -> seq += ["then3", args]; return null }
       .then { it -> seq += ["then4", it] }
       assertEquals("Not resolved yet", [], seq)
       pump()

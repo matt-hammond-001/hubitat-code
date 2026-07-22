@@ -79,7 +79,8 @@ Initialisation, connecting and disconnecting:
 		where Options are:
 			requestTimeoutSecs:N,      // time before request is considered timed out. NOTE this includes time spent queued waiting to be sent
 			maxConcurrentRequests: 1,  // requests will be queued so that no more that this many concurrent requests are in flight
-			keepAliveIntervalSecs: 1,  // default is 0 meaning no keep alives
+			keepAliveIntervalSecs: 10, // default is 0 meaning no keep alives
+			keepAliveMaxFailures: 3,   // default is 3 meaning if 3 keepalives fail consecutively, then force a reconnect
 			autoReconnect: true,       // automatically reconnect if connection is list
 			reconnectDelaySecs: 1,     // how long to wait before automatically reconnecting
 			unitId: 1,                 // default unit-id in all requests (unless overridden by specifying unitId in a request
@@ -98,7 +99,7 @@ Reading/writing registers:
 	.catch { err -> ... }
 
 	modbus_readCoils(REGNUM, QTY, *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_readDiscrete(REGNUM, *:opts)
@@ -106,23 +107,23 @@ Reading/writing registers:
 	.catch { err -> ... }
 
 	modbus_readDiscretes(REGNUM, QTY, *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_readInput(REGNUM, format:"s", *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_readInputs(REGNUM, QTY, format:"s", *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_readHoldingRegister(REGNUM, format:"s", *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_readHoldingRegisters(REGNUM, QTY, format:"s", *:opts)
-	.then { ...values -> ... }
+	.then { values -> ... }
 	.catch { err -> ... }
 
 	modbus_writeCoil(REGNUM, value, *:opts)
@@ -209,12 +210,12 @@ FORMAT SPECIFIERS
 	EXAMPLES:
 
 		modbus_readHoldingRegisters(0, 4, format:"B0<sI")
-		.then { v1, v2, v3 -> 
+		.then_spread { v1, v2, v3 -> 
 			// v1 is an unsigned byte ("B")
 			// the next 8 bits are ignored and not returned as an argument ("0")
 			// v2 is a little-endian ("<") signed short ("s")
 	        // v3 is a little-endian ("<") unsigned 32-bit int ("I")
-		}
+		})
 
 		modbus_writeHoldingRegisters(0, 4, format:"B0<sI", 253, -11325, 2000000)
 		// writes this byte sequence: [253, 0, 195, 211, 128, 132, 30, 0]
@@ -258,6 +259,7 @@ private Map _modbus_ensureData() {
             logLevels: [
                 trace:false, debug:false, info:false, warn:true, error:true
             ],
+            keepAliveFailCount: 0,
             unsentRequests: [],
             transactions: [:],
             nextTransactionId: (now() & 0xffff),
@@ -390,6 +392,7 @@ void modbus_connect(Map options=[:], ip, port) {
     MB.requestTimeoutSecs    = Math.max(1, options?.requestTimeoutSecs ?: 10) as int
 	MB.maxConcurrentRequests = Math.max(1, options?.maxConcurrentRequests ?: 1) as int
 	MB.keepAliveIntervalSecs = Math.max(0, options?.keepAliveIntervalSecs ?: 0) as int
+    MB.keepAliveMaxFailures  = Math.max(1, options?.keepAliveMaxFailures ?: 3) as int
 	MB.autoReconnect         = (!!(options?.autoReconnect)) ?: true
     MB.reconnectDelaySecs    = Math.max(1, options?.reconnectDelaySecs ?: 1) as int
     
@@ -433,7 +436,7 @@ void modbus_disconnect() {
 void socketStatus(String message) {
     Map MB = _modbus_ensureData()
     _modbus_logError("socketStatus: ${message}")
-	modbus_disconnect
+	modbus_disconnect()
     if (message == 'receive error: String index out of range: -1') {
         // This is some error condition that repeats every 15ms.
         // Probably a bug in the rawsocket code.  Close the connection to prevent
@@ -450,6 +453,7 @@ void socketStatus(String message) {
 
 def _modbus_reset_keepAlive() {
     Map MB = _modbus_ensureData()
+    MB.keepAliveFailCount = 0
     _modbus_clearTimeout("_modbus_do_keepAlive")
     if (MB.keepAliveIntervalSecs > 0) {
 		_modbus_setTimeout(MB.keepAliveIntervalSecs, "_modbus_do_keepAlive")
@@ -465,8 +469,15 @@ def _modbus_do_keepAlive() {
     def promise = invoke "keepAlive";
     if (promise != null)
     	promise.catch { e -> 
-            _modbus_logWarn "Invoking reconnect due to keepalive failure"
-            runIn(MB.reconnectDelaySecs, "modbus_reconnect")
+		    Map MB = _modbus_ensureData()
+            MB.keepAliveFailCount += 1
+            if (MB.keepAliveFailCount > MB.keepAliveMaxFailures) {
+	            _modbus_logWarn "Invoking reconnect due to keepalive failure"
+	            runIn(MB.reconnectDelaySecs, "modbus_reconnect")
+            } else {
+	            _modbus_logDebug "keepAlive try again : failCount=${MB.keepAliveFailCount} max=${MB.keepAliveMaxFailures}"
+				_modbus_setTimeout(1, "_modbus_do_keepAlive")
+            }
         }
 }
 

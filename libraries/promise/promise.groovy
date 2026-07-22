@@ -62,7 +62,8 @@ Examples:
   Promise(task)
   .then { println "Suceeded with ${it}"; return [1,2,3] }
   .catch { e -> println "Failed with exception ${e}" }
-  .then { a, b, c -> println "Received ${a}, ${b}, ${c}" }
+  .then { abc -> println "Received as a single argument: abc=${abc}"; return [a,b,c] }
+  .then_spread { a, b, c -> println "Received as spread arguments: a=${a}, b=${b}, c=${c}" }
 
 Create a promise by passing a Closure that will be run immediately. This closure is passed a single Map object with two methods as properties.
 The task should call either of these to indicate whether the promise is fulfilled or rejected:
@@ -75,8 +76,9 @@ The task should call either of these to indicate whether the promise is fulfille
 Calling Promise() returns a promise like object with then() and catch() methods for registering closures to be run if the promise is either fulfilled
 or rejected. then() or catch() return new promise-like objects enabling a chain to be built up.
 
-If the promise is fulfilled, the then() closures are passed the argument. If the argument is an array or list, then it will be expanded as varargs.
-If it is not, then it is returned as a single argument.
+If the promise is fulfilled, the then() closures are passed the result as a single argument.
+Use then_spread() instead (as shown above) if you wish to have the result automatically unpacked
+to positional arguments if it is an array or list.
 
 If the promise is rejected then an exception is passed as a single argument to the catch() closures.
 
@@ -122,14 +124,24 @@ boolean isArrayOrList(v) {
         return false
     }
 }
-    
-def ensureIsArrayOrList(v) {
-    if (isArrayOrList(v)) {
-        return v
-    } else {
-        return [v]
-    }
+
+def spread(Closure c) {
+	return { a -> 
+		if (isArrayOrList(a)) 
+			return c(*a)
+		else
+			return c(*[a])
+	}
 }
+
+
+// def ensureIsArrayOrList(v) {
+//     if (isArrayOrList(v)) {
+//         return v
+//     } else {
+//         return [v]
+//     }
+// }
 
 Map Promise(taskOrResolution=null) { 
 	Closure task;
@@ -154,7 +166,7 @@ Map Promise(taskOrResolution=null) {
 	Closure _resolve = { it=null ->
 		if (!rejected) {
 			if (!fulfilled) {
-				result = ensureIsArrayOrList(it)
+				result = it
 				pending = false
 				fulfilled = true
 			}
@@ -191,7 +203,7 @@ Map Promise(taskOrResolution=null) {
 				fulfilledCbs.add { args ->
 					try {
 						if (onFulfilled instanceof Closure) {
-							def r = onFulfilled(*args)
+							def r = onFulfilled(args)
 							if (r instanceof Map && r?.__is_promise__ == true) {
 								r.then( it.resolve )
 								r.catch( it.reject )
@@ -248,6 +260,7 @@ Map Promise(taskOrResolution=null) {
     
     return [
 		then: _then,
+        then_spread: { onFulfilled, onRejected=null -> _then(spread(onFulfilled),onRejected) },
 		catch: _catch,
 		__is_promise__: true,
 	]

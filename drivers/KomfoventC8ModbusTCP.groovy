@@ -1,4 +1,4 @@
-/**
+/** 
  * =============================================================================
  * 
  *  ModBus TCP Driver for Komfovent C8 controller for MVHR systems
@@ -257,9 +257,9 @@ Implementations
 -----------------------------------------------------------------------------
 */ 
 
-def doInitialize() {
+def doInitialize() { 
     unschedule()
-    
+     
     modbus_setLogging(settings.modbusLogLevel)
     
     modbus_connect(settings.IP, settings.PORT,
@@ -286,7 +286,7 @@ Regular polling/reading status, config etc
 def pollStatus() {
     logDebug("Polling status")
     modbus_readHoldingRegisters(1, 6, format:"0B")
-    .then { onOffStatus, autoModeCtrl, ecoMode, autoMode, currentMode, schedOpMode ->
+    .then_spread { onOffStatus, autoModeCtrl, ecoMode, autoMode, currentMode, schedOpMode ->
         logDebug "onOff=${onOffStatus} autoModeCtrl=${autoModeCtrl} ecoMode=${ecoMode} autoMode=${autoMode} currentMode=${currentMode} schedOpMode=${schedOpMode}"
         sendEvent name:"onOffStatus", value:enumOnOff.fromKey[onOffStatus]
         sendEvent name:"autoModeCtrl", value:enumAutoModes.fromKey[autoModeCtrl]
@@ -294,7 +294,7 @@ def pollStatus() {
         sendEvent name:"auto", value:enumOnOff.fromKey[autoMode]
 		sendEvent name:"currentMode", value:enumModes.fromKey[currentMode]
         sendEvent name:"schedulerOperationMode", value:enumSchedulerOperationModes.fromKey[schedOpMode]
-    } 
+    }
     .catch { e ->
         logError "Error reading status: ${e}"
     }
@@ -314,7 +314,7 @@ def pollMonitoring() {
     
     Parallel(
         modbus_readHoldingRegisters(901, 18, format:"0BssssIISSSSSSs0B0B")
-        .then { heatCoolConfig, supplyTemp, extractTemp, outdoorTemp, waterTemp,
+        .then_spread { heatCoolConfig, supplyTemp, extractTemp, outdoorTemp, waterTemp,
             supplyFlow, extractFlow, supplyFanPct, extractFanPct,
             heatX, eHeater, wHeater, wCooler, dxUnit,
             filterImp, airDampers ->
@@ -332,11 +332,11 @@ def pollMonitoring() {
                 sendEvent name:"filterStatus", value:(filterImp >= settings.filterReplaceThreshold) ? "replace":"normal"
 	            sendEvent name:"heatExchanger", value:heatX/10, unit:"%"
             logDebug "heatExchanger = ${heatX/10}"
-        } 
+        }
         .catch { e -> logError "Error reading monitoring.detailed: ${e}" },
         
         modbus_readHoldingRegisters(946, 9, format:"s0bSs0bS00000B")
-        .then { p1Temp, p1RH, p1AQ, p2Temp, p2RH, p2AQ, panels ->
+        .then_spread { p1Temp, p1RH, p1AQ, p2Temp, p2RH, p2AQ, panels ->
                 logDebug "Received panels monitoring"
             if (panels & 1) {
                 updateChild "Panel 1",
@@ -400,13 +400,13 @@ def updateStatusTile() {
             "</svg>"
     )
 }
-
+ 
 def pollOtherConfig() {
     logDebug("Polling other")
 
     Parallel(
         modbus_readHoldingRegisters(1000,6, format:"III")
-        .then { rawFw, rawP1Fw, rawP2Fw -> 
+        .then_spread { rawFw, rawP1Fw, rawP2Fw -> 
             sendEvent name:"firmwareVersion", value:"${getBits(rawFw,28,4)}.${getBits(rawFw,24,4)}.${getBits(rawFw,20,4)}.${getBits(rawFw,12,8)}.${getBits(rawFw,0,12)}"
             sendEvent name:"panel1FirmwareVersion", value:"${getBits(rawP1Fw,24,8)}.${getBits(rawP1Fw,20,4)}.${getBits(rawP1Fw,12,8)}.${getBits(rawP1Fw,0,12)}"
             sendEvent name:"panel2FirmwareVersion", value:"${getBits(rawP2Fw,24,8)}.${getBits(rawP2Fw,20,4)}.${getBits(rawP2Fw,12,8)}.${getBits(rawP2Fw,0,12)}"
@@ -414,7 +414,7 @@ def pollOtherConfig() {
         .catch { e -> logError "Error reading firmware info: ${e}" },
         
 	    modbus_readHoldingRegisters(205, 12, format:"0BsSS0B0B0B0B0B000B0B")
-        .then { airqEnable, tempSetpoint, airqSetpoint, rhSetpoint, airqMinIntensivity, airqMaxIntensivity, airqHeat, airqPollHours, airqSensor, rhEnable, outdoorRhSensor ->
+        .then_spread { airqEnable, tempSetpoint, airqSetpoint, rhSetpoint, airqMinIntensivity, airqMaxIntensivity, airqHeat, airqPollHours, airqSensor, rhEnable, outdoorRhSensor ->
             sendEvent name:"airQualityEnable", value:enumEnabled.fromKey[airqEnable]
             sendEvent name:"airQualityTemperatureSetpoint", value:(tempSetpoint as float)/10
             sendEvent name:"airQualityAirQualitySetpoint", value:airqSetpoint
@@ -574,7 +574,7 @@ def configureAirQuality(useSensor=null, temperatureSetpoint=null, airqSetpoint=n
     .catch { e -> logError "Error configuring air quality settings: ${e}" }
     .then {
         pollOtherConfig()
-    }.then { throw new Exception("check if unhandled exception is detected and reported") }
+    }.then { throw new Exception("check if unhandled exception is detected and reported") } 
 }
 
 /*
