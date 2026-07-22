@@ -176,6 +176,7 @@ metadata {
         
         input "temperatureSource", "enum", title:"Which source to use for temperature attribute of MVHR", defaultValue:"Outdoors", required:true, options:["Outdoors","Extract","Supply","Panel 1","Panel 2"]
         
+        input 'tileStyle', "enum", title: 'Tile colour style', description: 'Whether custom tile is to match a light or dark dashboard colour scheme', required:true, defaultValue:'dark', options:["dark","light"]
         input "debugEnable", "bool", title: "Enable debug logging", defaultValue:false, required: true
         input "traceEnable", "bool", title: "Enable trace logging", defaulValue:false, required: true
 
@@ -370,15 +371,12 @@ def updateStatusTile() {
     def s = fetchChild("Supply", false)
     def e = fetchChild("Extract", false)
     def o = fetchChild("Outdoors", false)
-    sendEvent(
-        name:"tileStatus",
-        value:
-			"""<svg preserveAspectRatio=xMidYMid,meet xmlns="http://www.w3.org/2000/svg" viewBox=0,0,200,300 >""" +
-        """<style>text{font:15px sans-serif;text-anchor:middle;fill:#fff}.r{fill:#f88}</style>""" +
-            """<path fill=#333 stroke=#ddd stroke-width=4 d=m100,20,90,80v190H10V100z />""" +
-            """<path fill=#68f d=m42,38,60,60-4,4-60-60m66,50,44-44-4-4,16-4-4,16-4-4-44,44 />""" +
-            """<path fill=#f84 d=m102,98,44,44,4-4,2,14-14-2,4-4-44-44m-50,46,44-44,4,4-44,44 />""" +
-            """<path fill=#fff0 stroke=#888 stroke-width=2 d=M60,80h80v40H60z${p1==null?'':'M47,216h16v22H47z'}${p2==null?'':'M137,216h16v22h-16z'} />""" +
+	String tileHtml = """<svg preserveAspectRatio=xMidYMid,meet xmlns="http://www.w3.org/2000/svg" viewBox=0,0,200,300 >""" +
+        """<style>text{font:15px sans-serif;text-anchor:middle;fill:#${settings.tileStyle=="dark"?"fff":"000"}}.r{fill:#f88}</style>""" +
+            """<path fill=#${settings.tileStyle=="dark"?"333":"fff"} stroke=#${settings.tileStyle=="dark"?"ddd":"444"} stroke-width=4 d=m100,20,90,80v190H10V100z />""" +
+                """<path fill=#${settings.tileStyle=="dark"?"68f":"8af"} d=m42,38,60,60-4,4-60-60m66,50,44-44-4-4,16-4-4,16-4-4-44,44 />""" +
+                    """<path fill=#${settings.tileStyle=="dark"?"f84":"fa6"} d=m102,98,44,44,4-4,2,14-14-2,4-4-44-44m-50,46,44-44,4,4-44,44 />""" +
+                """<path fill=#fff0 stroke=#${settings.tileStyle=="dark"?"888":"bbb"} stroke-width=2 d=M60,80h80v40H60z${p1==null?'':'M47,216h16v22H47z'}${p2==null?'':'M137,216h16v22h-16z'} />""" +
 //            """<text x=38 y=12>999 %RH</text>""" +                                      // outdoor humidity - not yet supported
             """<text x=38 y=30>${o.currentValue("temperature")?:"---"} °C</text>""" +     // outdoor temperature
             """<text x=54 y=172>${e.currentValue("temperature")?:"---"} °C</text>""" +    // extract temperature
@@ -397,7 +395,11 @@ def updateStatusTile() {
             )) +
 	        """<text x=100 y=66${device.currentValue("filterStatus")=="replace"?' class=r ':''}>▨ ${device.currentValue("filterImpurity")?:"---"}%</text>""" +
             """<text x=100 y=146>♻︎ ${device.currentValue("heatExchanger")?:"---"}%</text>""" +
-            "</svg>"
+            "</svg>";
+    logDebug "Updating tile HTML. Length=${tileHtml.getBytes().size()}"
+    sendEvent(
+        name:"tileStatus",
+        value: tileHtml
     )
 }
  
