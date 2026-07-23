@@ -4,7 +4,7 @@ This code is licensed as follows:
 
 BSD 3-Clause License
 
-Copyright (c) 2020, Matt Hammond
+Copyright (c) 2026, Matt Hammond
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -367,6 +367,7 @@ def invoke(methodName, ...args) {
     try {
         return this."$methodName"(*args)
     } catch (MissingMethodException e) {
+        _modbus_logDebug "invoke() exception caught: ${e}"
         if (e.getMethod() == methodName) {
             _modbus_logWarn "No ${methodName}() method"
 	        return null
@@ -467,10 +468,14 @@ def _modbus_stop_keepAlive() {
 def _modbus_do_keepAlive() {
     _modbus_logDebug "Calling keepAlive()"
     def promise = invoke "keepAlive";
-    if (promise != null)
+    _modbus_logDebug "keepAlive() returned ${promise}"
+    if (promise != null) {
+	    promise.then { _modbus_logDebug "keepAlive():promise resolved ${it}" }
     	promise.catch { e -> 
+		    _modbus_logDebug "keepAlive():promise rejected ${e}"
 		    Map MB = _modbus_ensureData()
             MB.keepAliveFailCount += 1
+	        _modbus_logDebug "keepAliveFailCount = ${MB.keepAliveFailCount}"
             if (MB.keepAliveFailCount > MB.keepAliveMaxFailures) {
 	            _modbus_logWarn "Invoking reconnect due to keepalive failure"
 	            runIn(MB.reconnectDelaySecs, "modbus_reconnect")
@@ -479,13 +484,14 @@ def _modbus_do_keepAlive() {
 				_modbus_setTimeout(1, "_modbus_do_keepAlive")
             }
         }
+    }
 }
 
 // ------------------------------------------------------------------------
 // request and transaction queue housekeeping
 // ------------------------------------------------------------------------
 
-void modbus_process() {
+synchronized void modbus_process() {
     // send queued requests, if connected and number in progress has not reached limit
     _modbus_sendQueued()
 
@@ -497,7 +503,11 @@ void modbus_process() {
     
     long nextPurgeDue = Math.min(nextQueuePurgeDue, nextTransactionPurgeDue)
     if (nextPurgeDue < Long.MAX_VALUE) {
-	    runInMillis(Math.max(1, nextPurgeDue-now()), "modbus_process")
+		def millis = Math.max(1, nextPurgeDue-now())
+        _modbus_logDebug "Scheduling next modbus_process() in ${millis} ms"
+	    runInMillis(millis, "modbus_process")
+    } else {
+        _modbus_logDebug "Not scheduling another modbus_process()"
     }
 }
 
@@ -521,7 +531,7 @@ void _modbus_sendQueued() {
         ]
         // send
 		try {
-	        _modbus_logTrace "Sending ADU: ${adu}"
+	        _modbus_logDebug "Sending ADU: ${adu}"
             state.modbusLastTrySendEpoch = now()
             state.modbusLastTrySendTime = new Date().toLocaleString()
             interfaces.rawSocket.sendMessage(adu)
@@ -716,7 +726,7 @@ void expect(String what, expectation, observed) {
 // ------------------------------------------------------------------------
 
 
-def modbus_request(Map opts=[:], byte [] pdu) {
+synchronized def modbus_request(Map opts=[:], byte [] pdu) {
     Map MB = _modbus_ensureData()
     return Promise( {
 	    state.modbusLastRequestEnqueuedEpoch = now()
@@ -735,7 +745,7 @@ def modbus_request(Map opts=[:], byte [] pdu) {
 def parse(message) {
 	Map MB = _modbus_ensureData()
 	_modbus_reset_keepAlive()
-    _modbus_logTrace "parse(${message})"
+    _modbus_logDebug "parse(${message})"
     state.modbusLastCheckinEpoch = now()
 	state.modbusLastCheckinTime = new Date().toLocaleString()
     

@@ -4,7 +4,7 @@ This code is licensed as follows:
 
 BSD 3-Clause License
 
-Copyright (c) 2020, Matt Hammond
+Copyright (c) 2026, Matt Hammond
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
