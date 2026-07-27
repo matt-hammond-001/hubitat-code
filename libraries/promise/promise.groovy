@@ -4,7 +4,7 @@ This code is licensed as follows:
 
 BSD 3-Clause License
 
-Copyright (c) 2026, Matt Hammond
+Copyright (c) 2020, Matt Hammond
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -319,18 +319,21 @@ def Parallel(Map opts=[:], ...promises) {
 }
 
 /**
- * Run a promise that returns a closure up to N times if it fails
+ * Run a promise that returns a closure up to N times if it fails, or if (optional) cond evaluates to true
  * before passin on that failure, or success.
  */
-def Retry(int n, Closure actionReturnsPromise) {
+def Retry(int n, Closure actionReturnsPromise, Closure cond = { true }) {
     return Promise { it ->
         Closure resolve = it.resolve
         Closure reject = it.reject
         Closure retry; // declare before assigning closure, otherwise closure cannot access itself
         retry = {
-	        actionReturnsPromise()
-	        .then(resolve)
-	        .catch { e ->
+	        def p = (
+                actionReturnsPromise()
+                .then { if (cond(it)) { throw new Exception("Retry") } else { return it } }
+            );
+	        p.then(resolve)
+	        p.catch { e ->
                 n=n-1
 	            if (n<=0) {
 	                reject(e)
