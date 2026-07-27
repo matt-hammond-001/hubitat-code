@@ -78,12 +78,13 @@ Initialisation, connecting and disconnecting:
 	modbus_connect(HOSTIP, PORT, *:options)
 		where Options are:
 			requestTimeoutSecs:N,      // time before request is considered timed out. NOTE this includes time spent queued waiting to be sent
-			maxConcurrentRequests: 1,  // requests will be queued so that no more that this many concurrent requests are in flight
+			maxConcurrentRequests: 1,  // requests will be queued so that no more that this many concurrent requests are in flight (throttles rate of requests by queueing)
 			keepAliveIntervalSecs: 10, // default is 0 meaning no keep alives
 			keepAliveMaxFailures: 3,   // default is 3 meaning if 3 keepalives fail consecutively, then force a reconnect
 			autoReconnect: true,       // automatically reconnect if connection is list
 			reconnectDelaySecs: 1,     // how long to wait before automatically reconnecting
-			unitId: 1,                 // default unit-id in all requests (unless overridden by specifying unitId in a request
+			unitId: 1,                 // default unit-id in all requests (unless overridden by specifying unitId in a request,
+			minMillisBetweenRequests: 500, // minimum milliseconds to leave between sending requets to the server (throttles rate of requests by queuing)
 
 	modbus_reconnect()
 		force a reconnect
@@ -260,6 +261,7 @@ private Map _modbus_ensureData() {
                 trace:false, debug:false, info:false, warn:true, error:true
             ],
             keepAliveFailCount: 0,
+            minMillisBetweenRequests: 500,
             unsentRequests: [],
             transactions: [:],
             nextTransactionId: (now() & 0xffff),
@@ -354,6 +356,16 @@ void _modbus_setTimeout(delaySecs, methodName) {
     _modbus_logDebug "runIn ${delaySecs} handle ${MB.runIns[methodName]}"
 }
 
+void _modbus_setTimeoutMillis(delaySecs, methodName) {
+    Map MB = _modbus_ensureData()
+    if (MB.runIns.get(methodName,null) != null) {
+        MB.runIns.remove(methodName)
+        cancelRunIn(methodName)
+    }
+    MB.runIns[methodName] = runInMillis(delaySecs, methodName)
+    _modbus_logDebug "runIn ${delaySecs} handle ${MB.runIns[methodName]}"
+}
+
 
 private byte[] _modbus_toUint16(v) {
     return [ (v >> 8) & 0xff, v & 0xff ]
@@ -396,6 +408,7 @@ void modbus_connect(Map options=[:], ip, port) {
     MB.keepAliveMaxFailures  = Math.max(1, options?.keepAliveMaxFailures ?: 3) as int
 	MB.autoReconnect         = (!!(options?.autoReconnect)) ?: true
     MB.reconnectDelaySecs    = Math.max(1, options?.reconnectDelaySecs ?: 1) as int
+    MB.minMillisBetweenRequests = Math.max(0, options?.minMillisBetweenRequests ?: 0) as long
     
     MB.unsentRequests = []
     MB.transactions   = [:]
@@ -478,7 +491,7 @@ def _modbus_do_keepAlive() {
 	        _modbus_logDebug "keepAliveFailCount = ${MB.keepAliveFailCount}"
             if (MB.keepAliveFailCount > MB.keepAliveMaxFailures) {
 	            _modbus_logWarn "Invoking reconnect due to keepalive failure"
-	            runIn(MB.reconnectDelaySecs, "modbus_reconnect")
+	            _modbus_setTimeout(MB.reconnectDelaySecs, "modbus_reconnect")
             } else {
 	            _modbus_logDebug "keepAlive try again : failCount=${MB.keepAliveFailCount} max=${MB.keepAliveMaxFailures}"
 				_modbus_setTimeout(1, "_modbus_do_keepAlive")
@@ -492,46 +505,57 @@ def _modbus_do_keepAlive() {
 // ------------------------------------------------------------------------
 
 synchronized void modbus_process() {
+    Map MB = _modbus_ensureData()
+	long whenNext = Long.MAX_VALUE;
+    
+    _modbus_logDebug "Entering modbus_process(). unsentRequests=${MB.unsentRequests.size()} transactions=${MB.transactions.size()} connected=${state.connected}"
+
     // send queued requests, if connected and number in progress has not reached limit
-    _modbus_sendQueued()
+    whenNext = Math.min(whenNext, _modbus_sendQueued())
 
     // cancel any timed out queued requests - e.g. because of too big a backlog or because not connected
-    long nextQueuePurgeDue = _modbus_purgeQueued()
+    whenNext = Math.min(whenNext, _modbus_purgeQueued())
     
     // in flight transactions - cancell all if not connected, or individually if transaction has timed out
-	long nextTransactionPurgeDue = _modbus_purgeTransactions()
+	whenNext = Math.min(whenNext, _modbus_purgeTransactions())
     
-    long nextPurgeDue = Math.min(nextQueuePurgeDue, nextTransactionPurgeDue)
-    if (nextPurgeDue < Long.MAX_VALUE) {
-		def millis = Math.max(1, nextPurgeDue-now())
-        _modbus_logDebug "Scheduling next modbus_process() in ${millis} ms"
-	    runInMillis(millis, "modbus_process")
+    if (whenNext < Long.MAX_VALUE) {
+		long millis = Math.max(50, whenNext-now())
+        _modbus_logDebug "Scheduling next modbus_process() in ${millis} ms. unsentRequests=${MB.unsentRequests.size()} transactions=${MB.transactions.size()} connected=${state.connected}"
+	    _modbus_setTimeoutMillis(millis, "modbus_process")
     } else {
         _modbus_logDebug "Not scheduling another modbus_process()"
     }
 }
 
-void _modbus_sendQueued() {
+long _modbus_sendQueued() {
     Map MB = _modbus_ensureData()
+    long whenNext = Long.MAX_VALUE;
     while (MB.transactions.size() < MB.maxConcurrentRequests && MB.unsentRequests.size() > 0) {
+        whenNext = (state?.modbusLastTrySendEpoch ?: now()) + MB.minMillisBetweenRequests
+        if (now() < whenNext) {
+            break
+        }
         Map request = MB.unsentRequests.pop()
-        _modbus_logTrace "Preparing to send ${request}"
+        _modbus_logTrace "Preparing to send ${request}${request.context}"
         // create request
         // create transaction record
 		def transactionId = MB.nextTransactionId
         MB.nextTransactionId = (MB.nextTransactionId + 1) & 0xffff
 
-        _modbus_logTrace "Preparing to make ADU: ${transactionId} ${request.pdu}"
+        _modbus_logTrace "Preparing to make ADU${request.context}: ${transactionId} ${request.pdu}"
 		def adu = _modbus_make_adu(transactionId, request.pdu as List, request?.unitId );
         _modbus_logTrace "ADU: ${adu}"
         Map transaction = [
             id: transactionId,
             promise: request.promise,
             expires: request.expires,
+            context: request.context,
+            req: request,
         ]
         // send
 		try {
-	        _modbus_logDebug "Sending ADU: ${adu}"
+	        _modbus_logDebug "Sending ADU${transaction.context}: ${adu}"
             state.modbusLastTrySendEpoch = now()
             state.modbusLastTrySendTime = new Date().toLocaleString()
             interfaces.rawSocket.sendMessage(adu)
@@ -542,6 +566,7 @@ void _modbus_sendQueued() {
 			transaction.promise.reject(e)
 		}
     }
+    return whenNext
 }
 
 def _modbus_make_adu(transactionId, List pdu, Integer unitId=null) {
@@ -557,13 +582,13 @@ def _modbus_make_adu(transactionId, List pdu, Integer unitId=null) {
 
 long _modbus_purgeQueued() {
     Map MB = _modbus_ensureData()
-    int now = now()
+    long now = now()
     int i=0
     long lowestExpires = Long.MAX_VALUE
     while (i < MB.unsentRequests.size()) {
         Map unsentRequest = MB.unsentRequests[i]
-        _modbus_logTrace "_modbus_purgeQueued : ${i} ${unsentRequest}"
         if (unsentRequest.expires < now) {
+	        _modbus_logTrace "_modbus_purgeQueued purging ${i} ${unsentRequest}"
             MB.unsentRequests.remove(i)
 			unsentRequest.promise.reject(new Exception("Request timed out"))
         } else {
@@ -576,15 +601,15 @@ long _modbus_purgeQueued() {
 
 long _modbus_purgeTransactions() {
     Map MB = _modbus_ensureData()
-    int now = now()
+    long now = now()
     _modbus_logTrace "purgeTransactions() now=${now}"
     long lowestExpires = Long.MAX_VALUE
     for(def transactionId in MB.transactions.keySet()) {
 		Map transaction = MB.transactions[transactionId]
         if (!state.connected || transaction.expires < now) {
-            _modbus_logTrace "purgeTransactions() purging ${transactionId} because expires=${transaction.expires}"
+            _modbus_logTrace "purgeTransactions() purging ${transactionId}${transaction.context} because expires=${transaction.expires}"
             MB.transactions.remove(transactionId)
-            transaction.promise.reject(new Exception("Transaction timed out. No response from server"))
+            transaction.promise.reject(new Exception("Transaction${transaction.context} timed out. No response from server"))
         } else {
             lowestExpires = Math.min(lowestExpires, transaction.expires)
         }
@@ -693,7 +718,8 @@ private def _modbus_readBits(Map opts=[:], int funcCode, intRegNum, int qty) {
 }
 
 private def _modbus_readRegisters(Map opts=[:], int funcCode, int regNum, int qty) {
- 	String format = opts.format ?: "s"
+    Map MB = _modbus_ensureData()
+    String format = opts.format ?: "s"
     return modbus_request([funcCode, *_modbus_toUint16(regNum-1), *_modbus_toUint16(qty)] as byte[], *:opts)
     .then { pdu -> // parse registers response
         expectFuncCode(funcCode, pdu.bytes, pdu.offset)
@@ -701,7 +727,6 @@ private def _modbus_readRegisters(Map opts=[:], int funcCode, int regNum, int qt
         return _modbus_unpack(format, pdu.bytes, pdu.offset+2, qty*2)
     }
 }
-
 
 void expectFuncCode(okFuncCode, byte[] pdu, int i) {
     if (pdu[i] as int & 0x80) {
@@ -725,9 +750,9 @@ void expect(String what, expectation, observed) {
 // queuing requests and parsing responses
 // ------------------------------------------------------------------------
 
-
 synchronized def modbus_request(Map opts=[:], byte [] pdu) {
     Map MB = _modbus_ensureData()
+    _modbus_logDebug ("modbus_request context=${opts?.context} ... ${opts?.context != null} ... ${(opts?.context!= null) ? " < ${opts?.context} >" : "<--no context-->"}")
     return Promise( {
 	    state.modbusLastRequestEnqueuedEpoch = now()
 		state.modbusLastRequestEnqueuedTime = new Date().toLocaleString()
@@ -737,8 +762,9 @@ synchronized def modbus_request(Map opts=[:], byte [] pdu) {
             promise: it,
             unitId: opts?.unitId,
             expires: now() + MB.requestTimeoutSecs*1000,
+            context: (opts?.context != null) ? " &lt;${opts?.context}&gt;" : "",
         ])
-        runInMillis(20, "modbus_process")
+        _modbus_setTimeoutMillis(20, "modbus_process")
     })
 }
 
@@ -783,12 +809,12 @@ int _modbus_parse_adu(byte[] msg, int i) {
     if (transaction == null) {
         _modbus_logError("Unrecognised transaction received id=${transactionId}")
     } else {
-	    _modbus_logTrace("Expected received id=${transactionId} pdu_len: ${pdu_len}")
+	    _modbus_logDebug("Received response for transaction id=${transactionId}${transaction.context} pdu_len=${pdu_len}")
         MB.transactions.remove(transactionId)
         try {
-	        transaction.promise.resolve([bytes:msg, offset:i+7, len:pdu_len])
+	        transaction.promise.resolve([bytes:msg, offset:i+7, len:pdu_len, transaction:transaction])
         } catch (e) {
-            _modbus_logError("Error when handling received PDU for transaction ${transactionId}")
+            _modbus_logError("Error when handling received PDU for transaction ${transactionId}${transaction.context}")
         }
     }
     return i+7+pdu_len
