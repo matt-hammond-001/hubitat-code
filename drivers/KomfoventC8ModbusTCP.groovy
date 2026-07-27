@@ -1,6 +1,6 @@
-/**
+/** 
  * =============================================================================
- * 
+ *
  *  ModBus TCP Driver for Komfovent C8 controller for MVHR systems
  *
  *  Version 0.0.1
@@ -9,7 +9,7 @@
  * 
  *  https://github.com/matt-hammond-001/hubitat-code
  *
------------------------------------------------------------------------------
+----------------------------------------------------------------------------- 
 
 This code is licensed as follows:
 
@@ -169,6 +169,7 @@ metadata {
         input(type: 'string', name: 'IP', title: 'Unit IP Address', description: '(IPv4 address in form of 192.168.1.45)', required: true)
         input(type: 'number', name: 'PORT', title: 'Unit Port', description: '(IPv4 port)', required: true, defaultValue: 502)
 
+		input(type: 'number', name: 'minMillisBetweenRequests', title: 'Milliseconds between modbus requests', description:'Minimum amount of time ot leave between sending requests to the modbus server', required:true, defaultValue:500)
         input(type: 'number', name: 'statusPollInterval', title: 'Polling interval: status', description: 'Polling interval (seconds)', required: true, defaultValue:2)
         input(type: 'number', name: 'monitoringPollInterval', title: 'Polling interval: monitoring', description: 'Polling interval (seconds)', required: true, defaultValue:5)
         input(type: 'number', name: 'otherPollInterval', title: 'Polling interval: other settings/config', description: 'Polling interval (seconds)', required: true, defaultValue:30)
@@ -225,6 +226,7 @@ Main functions
     
 def installed() {
     state.clear()
+	doInitialize()
 }
 
 def configure() {
@@ -249,44 +251,45 @@ def refresh() {
 def uninstalled() { 
 	unschedule()
     modbus_disconnect()
-}
- 
+} 
+
  
 /* 
 -----------------------------------------------------------------------------
 Implementations
 -----------------------------------------------------------------------------
-*/ 
+*/
 
-def doInitialize() { 
+def doInitialize() {
     unschedule() 
     
     modbus_setLogging(settings.modbusLogLevel)
     
     modbus_connect(settings.IP, settings.PORT,
-		requestTimeoutSecs: 4,
+		requestTimeoutSecs: 8,
 		maxConcurrentRequests: 1,
 		keepAliveIntervalSecs: 10,
 		autoReconnect: true,
-		reconnectDelaySecs: 1
+		reconnectDelaySecs: 1,
+        minMillisBetweenRequests: settings.minMillisBetweenRequests,
     )
     
     refresh()
 }
 
 def keepAlive() { 
-    return modbus_readHoldingRegister(1, format:"0B")
-}
+    return modbus_readHoldingRegister(1, format:"0B", context:"keepAlive")
+} 
 
-/*
+/* 
 -----------------------------------------------------------------------------
 Regular polling/reading status, config etc
 -----------------------------------------------------------------------------
-*/ 
+*/
 
 def pollStatus() {
     logDebug("Polling status")
-    modbus_readHoldingRegisters(1, 6, format:"0B")
+    modbus_readHoldingRegisters(1, 6, format:"0B", context:"pollStatus")
     .then_spread { onOffStatus, autoModeCtrl, ecoMode, autoMode, currentMode, schedOpMode ->
         logDebug "onOff=${onOffStatus} autoModeCtrl=${autoModeCtrl} ecoMode=${ecoMode} autoMode=${autoMode} currentMode=${currentMode} schedOpMode=${schedOpMode}"
         sendEvent name:"onOffStatus", value:enumOnOff.fromKey[onOffStatus]
@@ -302,7 +305,7 @@ def pollStatus() {
     .then {
         runIn(settings.statusPollInterval, "pollStatus")
     }
-}
+} 
 
 
 def getBits(v, offset, n) {
@@ -314,7 +317,7 @@ def pollMonitoring() {
     logDebug("Polling monitoring")
     
     Parallel(
-        modbus_readHoldingRegisters(901, 18, format:"0BssssIISSSSSSs0B0B")
+        modbus_readHoldingRegisters(901, 18, format:"0BssssIISSSSSSs0B0B", context:"pollMonitoring(detailed)")
         .then_spread { heatCoolConfig, supplyTemp, extractTemp, outdoorTemp, waterTemp,
             supplyFlow, extractFlow, supplyFanPct, extractFanPct,
             heatX, eHeater, wHeater, wCooler, dxUnit,
@@ -336,7 +339,7 @@ def pollMonitoring() {
         }
         .catch { e -> logError "Error reading monitoring.detailed: ${e}" },
         
-        modbus_readHoldingRegisters(946, 9, format:"s0bSs0bS00000B")
+        modbus_readHoldingRegisters(946, 9, format:"s0bSs0bS00000B", context:"pollMonitoring(panels)")
         .then_spread { p1Temp, p1RH, p1AQ, p2Temp, p2RH, p2AQ, panels ->
                 logDebug "Received panels monitoring"
             if (panels & 1) {
@@ -407,7 +410,7 @@ def pollOtherConfig() {
     logDebug("Polling other")
 
     Parallel(
-        modbus_readHoldingRegisters(1000,6, format:"III")
+        modbus_readHoldingRegisters(1000,6, format:"III", context:"pollOtherConfig(firmware)")
         .then_spread { rawFw, rawP1Fw, rawP2Fw -> 
             sendEvent name:"firmwareVersion", value:"${getBits(rawFw,28,4)}.${getBits(rawFw,24,4)}.${getBits(rawFw,20,4)}.${getBits(rawFw,12,8)}.${getBits(rawFw,0,12)}"
             sendEvent name:"panel1FirmwareVersion", value:"${getBits(rawP1Fw,24,8)}.${getBits(rawP1Fw,20,4)}.${getBits(rawP1Fw,12,8)}.${getBits(rawP1Fw,0,12)}"
@@ -415,7 +418,7 @@ def pollOtherConfig() {
         }
         .catch { e -> logError "Error reading firmware info: ${e}" },
         
-	    modbus_readHoldingRegisters(205, 12, format:"0BsSS0B0B0B0B0B000B0B")
+	    modbus_readHoldingRegisters(205, 12, format:"0BsSS0B0B0B0B0B000B0B", context:"pollOtherConfig(airQ)")
         .then_spread { airqEnable, tempSetpoint, airqSetpoint, rhSetpoint, airqMinIntensivity, airqMaxIntensivity, airqHeat, airqPollHours, airqSensor, rhEnable, outdoorRhSensor ->
             sendEvent name:"airQualityEnable", value:enumEnabled.fromKey[airqEnable]
             sendEvent name:"airQualityTemperatureSetpoint", value:(tempSetpoint as float)/10
@@ -459,7 +462,7 @@ Commands
 */
 
 def setPower(onOff) {
-    modbus_writeHoldingRegister(1, enumOnOff.fromValue[onOff], format:"0b")
+    modbus_writeHoldingRegister(1, enumOnOff.fromValue[onOff], format:"0b", context:"setPower")
     .catch { e ->
         logError "Error setting power to ${mode}: ${e}"
     }
@@ -474,23 +477,22 @@ def setMode(mode) {
         	setAuto("off")
        		break
         default:
-		    modbus_writeHoldingRegister(5, enumModes.fromValue[mode], format:"0b")
+		    modbus_writeHoldingRegister(5, enumModes.fromValue[mode], format:"0b", context:"setMode")
     }
 }
 
 def setAuto(onOff) {
-	modbus_writeHoldingRegister(4, (onOff=="on")?1:0, format:"0b")
+	modbus_writeHoldingRegister(4, (onOff=="on")?1:0, format:"0b", context:"setAuto")
 }
 
 def setEco(onOff) {
-    modbus_writeHoldingRegister(3, enumOnOff.fromValue[onOff], format:"0b")
+    modbus_writeHoldingRegister(3, enumOnOff.fromValue[onOff], format:"0b", context:"setEco")
 }
 
 def setAutoCtrlMode(mode) {
     logDebug "setAutoCtrlMode(${mode} - ${enumAutoModes.fromValue[mode]})"
 	boolean isAirQ = enumAutoModes.fromValue[mode];
-    modbus_writeHoldingRegister(205, isAirQ?1:0, format:"0b")
-    modbus_writeHoldingRegister(205, isAirQ?1:0, format:"0b")
+    modbus_writeHoldingRegister(205, isAirQ?1:0, format:"0b", context:"setAutoCtrlMode")
 }
 
 def configureMode(mode, supplyFlow=null, extractFlow=null, heatingSetpoint=null, heatingEnable=null, humiditySetpoint=null) { 
@@ -517,20 +519,20 @@ def configureMode(mode, supplyFlow=null, extractFlow=null, heatingSetpoint=null,
 
     if (supplyFlow != null) {
         logDebug "Setting ${mode} ${r1+0} supply flow to ${supplyFlow}"
-        modbus_writeHoldingRegisters(r1 + 0, 2, supplyFlow, format:"I")
+        modbus_writeHoldingRegisters(r1 + 0, 2, supplyFlow, format:"I", context:"configureMode(supplyFlow)")
         logDebug "Done"
     }
     if (extractFlow != null) {
-        modbus_writeHoldingRegisters(r1 + 2, 2, format:"I", extractFlow)
+        modbus_writeHoldingRegisters(r1 + 2, 2, format:"I", extractFlow, context:"configureMode(extractFlow)")
     }
     if (heatingSetpoint != null) {
-        modbus_writeHoldingRegister(r1 + 4, format:"S", (heatingSetpoint*10) as int)
+        modbus_writeHoldingRegister(r1 + 4, format:"S", (heatingSetpoint*10) as int, context:"configureMode(heatingSetPoint)")
     }
     if (heatingEnable != null) {
-        modbus_writeHoldingRegister(r1 + 5, format:"0B", enumOnOff.fromValue[heatingEnable])
+        modbus_writeHoldingRegister(r1 + 5, format:"0B", enumOnOff.fromValue[heatingEnable], context:"configureMode(heatingEnable)")
     }
     if (humiditySetpoint != null) {
-        modbus_writeHoldingRegister(r2, format:"0B", (humiditySetpoint*10) as int)
+        modbus_writeHoldingRegister(r2, format:"0B", (humiditySetpoint*10) as int, context:"configureMode(humiditySetpoint)")
     }
 }
         
@@ -539,44 +541,44 @@ def configureAirQuality(useSensor=null, temperatureSetpoint=null, airqSetpoint=n
 
     Parallel(
         { if (useSensor != null)
-            return modbus_writeHoldingRegister(205, format:"0B", enumEnabled.fromValue[useSensor])
+            return modbus_writeHoldingRegister(205, format:"0B", enumEnabled.fromValue[useSensor], context:"configureAirQuality(useSensor)")
         }, 
         { if (temperatureSetpoint != null)
-            return modbus_writeHoldingRegister(206, format:"s", constrainRange(temperatureSetpoint*10, 50, 400) as int)
+            return modbus_writeHoldingRegister(206, format:"s", constrainRange(temperatureSetpoint*10, 50, 400) as int, context:"configureAirQuality(temperatureSetpoint)")
         },
         { if (airqSetpoint != null)
-            return modbus_writeHoldingRegister(207, format:"S", constrainRange(airqSetpoint0,2000))
+            return modbus_writeHoldingRegister(207, format:"S", constrainRange(airqSetpoint0,2000), context:"configureAirQuality(airqSetpoint)")
         },
         { if (humiditySetpoint != null)
-         return modbus_writeHoldingRegister(208, format:"S", constrainRange(humiditySetpoint,10,90))
+         return modbus_writeHoldingRegister(208, format:"S", constrainRange(humiditySetpoint,10,90), context:"configureAirQuality(humiditySetpint)")
         },
         { if (minIntensivity != null)
-            return modbus_writeHoldingRegister(209, format:"0B", constrainRange(minIntensivity,20,100))
+            return modbus_writeHoldingRegister(209, format:"0B", constrainRange(minIntensivity,20,100), context:"configureAirQuality(minIntensivity)")
         },
         { if (maxIntensivity != null)
-            return modbus_writeHoldingRegister(210, format:"0B", constrainRange(maxIntensivity,20,100))
+            return modbus_writeHoldingRegister(210, format:"0B", constrainRange(maxIntensivity,20,100), context:"configureAirQuality(maxIntensivity)")
         },
         { if (heating != null)
-            return modbus_writeHoldingRegister(211, format:"0B", enumOnOff.fromValue[heating])
+            return modbus_writeHoldingRegister(211, format:"0B", enumOnOff.fromValue[heating], context:"configureAirQuality(heating)")
         },
         { if (pollHours != null)
-            return modbus_writeHoldingRegister(212, format:"0B", constrainRange(pollHours,1,24))
+            return modbus_writeHoldingRegister(212, format:"0B", constrainRange(pollHours,1,24), context:"configureAirQuality(pollHours)")
         },
         { if (sensorType != null)
-            return modbus_writeHoldingRegister(213, format:"0B", enumAirQualitySensorType.fromValue[sensorType])
+            return modbus_writeHoldingRegister(213, format:"0B", enumAirQualitySensorType.fromValue[sensorType], context:"configureAirQuality(sensorType)")
         },
         { if (useHumidity != null)
-            return modbus_writeHoldingRegister(215, format:"0B", enumEnabled.fromValue[useHumidity])
+            return modbus_writeHoldingRegister(215, format:"0B", enumEnabled.fromValue[useHumidity], context:"configureAirQuality(useHumidity)")
         },
         { if (outdoorSensor != null)
-            return modbus_writeHoldingRegister(216, format:"0B", enumSensor.fromValue[outdoorSensor])
+            return modbus_writeHoldingRegister(216, format:"0B", enumSensor.fromValue[outdoorSensor], context:"configureAirQuality(outdoorSensor)")
         },
     )
     .then { logDebug "configureAirQuality() ... success" }
     .catch { e -> logError "Error configuring air quality settings: ${e}" }
     .then {
         pollOtherConfig()
-    }.then { throw new Exception("check if unhandled exception is detected and reported") } 
+    }
 }
 
 /*
