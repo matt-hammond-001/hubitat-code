@@ -540,14 +540,14 @@ long _modbus_sendQueued() {
         _modbus_logTrace "Preparing to send ${request}${request.context}"
         // create request
         // create transaction record
-		def transactionId = MB.nextTransactionId
+		int transactionId = MB.nextTransactionId
         MB.nextTransactionId = (MB.nextTransactionId + 1) & 0xffff
 
         _modbus_logTrace "Preparing to make ADU${request.context}: ${transactionId} ${request.pdu}"
 		def adu = _modbus_make_adu(transactionId, request.pdu as List, request?.unitId );
         _modbus_logTrace "ADU: ${adu}"
         Map transaction = [
-            id: transactionId,
+            id: transactionId as int,
             promise: request.promise,
             expires: request.expires,
             context: request.context,
@@ -561,7 +561,7 @@ long _modbus_sendQueued() {
             interfaces.rawSocket.sendMessage(adu)
             state.modbusLastSentEpoch = now()
             state.modbusLastSentTime = new Date().toLocaleString()
-	        MB.transactions[transactionId] = transaction
+	        MB.transactions[transactionId as int] = transaction
 		} catch (e) {
 			transaction.promise.reject(e)
 		}
@@ -569,7 +569,7 @@ long _modbus_sendQueued() {
     return whenNext
 }
 
-def _modbus_make_adu(transactionId, List pdu, Integer unitId=null) {
+def _modbus_make_adu(int transactionId, List pdu, Integer unitId=null) {
     return HexUtils.byteArrayToHexString([
         *_modbus_toUint16(transactionId),
         *_modbus_toUint16(0),    // protocol id
@@ -799,18 +799,18 @@ int _modbus_parse_adu(byte[] msg, int i) {
 	    throw new Exception("ADU not long enough - only ${msg.size()} bytes")
 	}
     
-    long transactionId = _modbus_fromUint16(msg, i)
+    int transactionId = _modbus_fromUint16(msg, i)
     long pdu_len = _modbus_fromUint16(msg, i+4) - 1
     // ignore protocol header in i+2, i+3
 	// ignore unit identifier in i+6
 
-    Map transaction = MB.transactions[transactionId]
+    Map transaction = MB.transactions[transactionId as int]
 
     if (transaction == null) {
         _modbus_logError("Unrecognised transaction received id=${transactionId}")
     } else {
 	    _modbus_logDebug("Received response for transaction id=${transactionId}${transaction.context} pdu_len=${pdu_len}")
-        MB.transactions.remove(transactionId)
+        MB.transactions.remove(transactionId as int)
         try {
 	        transaction.promise.resolve([bytes:msg, offset:i+7, len:pdu_len, transaction:transaction])
         } catch (e) {
