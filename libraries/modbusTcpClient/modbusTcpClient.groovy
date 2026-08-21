@@ -338,32 +338,36 @@ void _modbus_logError(msg) {
 // utils
 // ------------------------------------------------------------------------
 
-void _modbus_clearTimeout(methodName) {
+synchronized void _modbus_clearTimeout(methodName) {
     Map MB = _modbus_ensureData()
-    if (MB.runIns.get(methodName,null) != null) {
-        MB.runIns.remove(methodName)
-        cancelRunIn(MB.runIns[methodName])
+    def existingScheduledJob = MB.runIns.remove(methodName)
+    if (existingScheduledJob != null) {
+        cancelRunIn(existingScheduledJob)
     }
 }
 
-void _modbus_setTimeout(delaySecs, methodName) {
-    Map MB = _modbus_ensureData()
-    if (MB.runIns.get(methodName,null) != null) {
-        MB.runIns.remove(methodName)
-        cancelRunIn(methodName)
-    }
-    MB.runIns[methodName] = runInMillis(delaySecs*1000, methodName)
-    _modbus_logDebug "runIn ${delaySecs} handle ${MB.runIns[methodName]}"
+synchronized void _modbus_setTimeout(delaySecs, String methodName) {
+    _modbus_setTimeoutMillis(delaySecs*1000, methodName)
 }
 
-void _modbus_setTimeoutMillis(delaySecs, methodName) {
+synchronized void _modbus_setTimeoutMillis(delayMillis, String methodName) {
     Map MB = _modbus_ensureData()
-    if (MB.runIns.get(methodName,null) != null) {
-        MB.runIns.remove(methodName)
-        cancelRunIn(methodName)
+    def cancelRes = new Exception("Nothing cancelled");
+    def existingScheduledJob = MB.runIns.remove(methodName)
+//    if (existingScheduledJob != null) {
+//        cancelRes = cancelRunIn(existingScheduledJob)
+//    }
+    try {
+        Map opts = [overwrite:true]
+        if (delayMillis <= 0) {
+            opts.misfire = 'ignore'
+            delayMillis = 0
+        }
+        MB.runIns[methodName] = runInMillis(delayMillis, methodName, opts)
+        _modbus_logDebug "runIn ${delaySecs} handle ${MB.runIns[methodName]}"
+    } catch (e) {
+        _modbus_logError "_modbus_setTimeoutMillis(${delayMillis}, ${methodName}) : ${e} : existingScheduledJob=${existingScheduledJob} cancelRunIn() returned ${cancelRes} runIns=${MB.runIns}"
     }
-    MB.runIns[methodName] = runInMillis(delaySecs, methodName)
-    _modbus_logDebug "runIn ${delaySecs} handle ${MB.runIns[methodName]}"
 }
 
 
