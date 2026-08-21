@@ -1,4 +1,4 @@
-/** 
+/**
  * =============================================================================
  *
  *  ModBus TCP Driver for Komfovent C8 controller for MVHR systems
@@ -6,7 +6,7 @@
  *  Version 0.0.1
  *
  *  (c) 2026 Matt Hammond / matthammond.org
- * 
+ *
  *  https://github.com/matt-hammond-001/hubitat-code
  *
 ----------------------------------------------------------------------------- 
@@ -133,6 +133,7 @@ metadata {
         ] 
                 
         attribute "tileStatus", "string"
+        attribute "tileCmdSetMode", "string"
         
         attribute "onOffStatus", "enum", enumOnOff.values
         attribute "auto", "enum", enumOnOff.values
@@ -182,6 +183,8 @@ metadata {
         input "traceEnable", "bool", title: "Enable trace logging", defaulValue:false, required: true
 
         input "modbusLogLevel", "enum", title:"Logging level for modbus_client", defaultValue:"warn", required:true, options:["trace","debug","info","warn","error"]
+
+    	input name:"makerApiDeviceCmdUrl", type:"string", title:"Maker API Command URL", description:"Maker API \"Send device command\" URL Template (idealy the cloud one) \"[DeviceID]\", \"[Command]\" and \"[Secondary value]\" will be substituted to construct requests", defaultValue:""
     }
 
 }
@@ -232,9 +235,41 @@ def installed() {
 def configure() {
 }
 
+String makeCmdUrl(String cmd, String secondary) {
+    if (settings.makerApiDeviceCmdUrl) {
+	    return settings.makerApiDeviceCmdUrl
+        	.replace("[Device ID]", "${device.getId()}")
+        	.replace("[Command]",cmd)
+        	.replace("[Secondary value]",secondary)
+        	.replaceAll(/\/api\/[-0-9a-zA-Z]+\/apps\//, '/api/\\${hub.hubId}/apps/')
+    } else {
+        return null
+    }
+}
+
+String makeCmdHtmlCode(String cmd, List<String> values) {
+    String cmdUrl = makeCmdUrl(cmd, "\${this.selectedOptions[0].innerText}")
+    return (cmdUrl == null) ? "Not in use. Need preference: Maker API Command URL" : (
+         "<select class=\"_cmd_\" " +
+         "onchange='fetch(`${cmdUrl}`)'" +
+         ">" +
+         ((values.collect { "<option>${it}</option>" }).join("")) +
+        "</select><style>" +
+        "._cmd_{border:#0000;background:#0000;color:#0000;display:block;width:100%;height:100%;} " +
+        ".tile.attribute:has(._cmd_){background:#0000;border-color:#0000;} " +
+        ".tile.attribute:has(._cmd_) .tile-title{display:none;}" +
+        ".tile.attribute:has(._cmd_) .tile-primary{height:100%;}" +
+        "</style>"
+     )
+}
+
 def initialize() {
     state.clear()
 	doInitialize()
+    state.deviceId = device.getId()
+
+ 	sendEvent(name:"tileCmdSetMode",  value:makeCmdHtmlCode("setMode", [ "away", "normal", "intensive", "boost", "auto","auto off" ]))
+ 	sendEvent(name:"tileCmdSetPower", value:makeCmdHtmlCode("setPower", [ "off","on" ]))
 }
 
 def updated() {
