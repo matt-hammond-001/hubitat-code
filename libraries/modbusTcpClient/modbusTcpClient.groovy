@@ -541,7 +541,7 @@ long _modbus_sendQueued() {
     long whenNext = Long.MAX_VALUE;
 //    modbus_logTrace "_modbus_sendQueued() : 
     while (MB.transactions.size() < MB.maxConcurrentRequests && MB.unsentRequests.size() > 0) {
-        whenNext = (state?.modbusLastTrySendEpoch ?: now()) + MB.minMillisBetweenRequests
+        whenNext = (state?.modbusLastTrySendEpoch ?: 0) + MB.minMillisBetweenRequests
         if (now() < whenNext) {
             break
         }
