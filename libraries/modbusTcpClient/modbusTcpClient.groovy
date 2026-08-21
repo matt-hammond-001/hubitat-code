@@ -414,8 +414,8 @@ void modbus_connect(Map options=[:], ip, port) {
     MB.reconnectDelaySecs    = Math.max(1, options?.reconnectDelaySecs ?: 1) as int
     MB.minMillisBetweenRequests = Math.max(0, options?.minMillisBetweenRequests ?: 0) as long
     
-    MB.unsentRequests = []
-    MB.transactions   = [:]
+    MB.unsentRequests.clear()
+    MB.transactions.clear()
 	                       
     modbus_reconnect()
 }
@@ -526,7 +526,11 @@ synchronized void modbus_process() {
     if (whenNext < Long.MAX_VALUE) {
 		long millis = Math.max(50, whenNext-now())
         _modbus_logDebug "Scheduling next modbus_process() in ${millis} ms. unsentRequests=${MB.unsentRequests.size()} transactions=${MB.transactions.size()} connected=${state.connected}"
-	    _modbus_setTimeoutMillis(millis, "modbus_process")
+        try {
+		    _modbus_setTimeoutMillis(millis, "modbus_process")
+        } catch (e) {
+            _modbus_logError "modbus_process() error in _modbus_setTimeoutMillis(${millis},\"modbus_process\") : ${e}"
+        }
     } else {
         _modbus_logDebug "Not scheduling another modbus_process()"
     }
@@ -535,6 +539,7 @@ synchronized void modbus_process() {
 long _modbus_sendQueued() {
     Map MB = _modbus_ensureData()
     long whenNext = Long.MAX_VALUE;
+//    modbus_logTrace "_modbus_sendQueued() : 
     while (MB.transactions.size() < MB.maxConcurrentRequests && MB.unsentRequests.size() > 0) {
         whenNext = (state?.modbusLastTrySendEpoch ?: now()) + MB.minMillisBetweenRequests
         if (now() < whenNext) {
@@ -606,16 +611,20 @@ long _modbus_purgeQueued() {
 long _modbus_purgeTransactions() {
     Map MB = _modbus_ensureData()
     long now = now()
-    _modbus_logTrace "purgeTransactions() now=${now}"
+    _modbus_logTrace "purgeTransactions() now=${now} transactions=${MB.transactions}"
     long lowestExpires = Long.MAX_VALUE
-    for(def transactionId in MB.transactions.keySet()) {
-		Map transaction = MB.transactions[transactionId]
-        if (!state.connected || transaction.expires < now) {
-            _modbus_logTrace "purgeTransactions() purging ${transactionId}${transaction.context} because expires=${transaction.expires}"
-            MB.transactions.remove(transactionId)
-            transaction.promise.reject(new Exception("Transaction${transaction.context} timed out. No response from server"))
+    for(int transactionId in MB.transactions.keySet()) {
+		Map transaction = MB.transactions[transactionId as int]
+        if (!transaction) {
+            _modbus_logError "purgeTransactions() transactions[${transactionId}] = ${transaction} in ${MB.transactions}"
         } else {
-            lowestExpires = Math.min(lowestExpires, transaction.expires)
+            if (!state.connected || transaction.expires < now) {
+                _modbus_logTrace "purgeTransactions() purging ${transactionId}${transaction.context} because expires=${transaction.expires}"
+                MB.transactions.remove(transactionId as int)
+                transaction.promise.reject(new Exception("Transaction${transaction.context} timed out. No response from server"))
+            } else {
+                lowestExpires = Math.min(lowestExpires, transaction.expires)
+            }
         }
     }
     return lowestExpires
@@ -768,7 +777,11 @@ synchronized def modbus_request(Map opts=[:], byte [] pdu) {
             expires: now() + MB.requestTimeoutSecs*1000,
             context: (opts?.context != null) ? " &lt;${opts?.context}&gt;" : "",
         ])
-        _modbus_setTimeoutMillis(20, "modbus_process")
+        try {
+	        _modbus_setTimeoutMillis(0, "modbus_process")
+        } catch (e) {
+            _modbus_logError "modbus_request(${opts},${pdu}) error in _modbus_setTimeoutMillis(${millis},\"modbus_process\") : ${e}"
+        }            
     })
 }
 
