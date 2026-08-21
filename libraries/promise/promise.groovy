@@ -241,11 +241,15 @@ Map Promise(taskOrResolution=null) {
 			}
 			if (!pending) {
 				Map P = _promise_ensureData()
-				if (fulfilled)
-				    P.promiseTasks.add([task:_resolve, param:null])
-				if (rejected)
-				    P.promiseTasks.add([task:_reject, param:null])
-				runIn(0, "_promiseTaskRunner", [misfire: true])
+                if (fulfilled)
+                    P.promiseTasks.add([task:_resolve, param:null])
+                if (rejected)
+                    P.promiseTasks.add([task:_reject, param:null])
+                try {
+                    runInMillis(0, "_promiseTaskRunner", [overwrite:true, misfire: 'ignore'])
+                } catch (e) {
+			        log.error "promise::Promise::_then : runInMillis(_promiseTaskRunner) errored: ${e}"
+                }
 			}
 		}
 	}
@@ -256,7 +260,13 @@ Map Promise(taskOrResolution=null) {
 
     Map P = _promise_ensureData()
     P.promiseTasks.add([task:task, param:[resolve:_resolve, reject:_reject]])
-	runIn(0, "_promiseTaskRunner", [misfire: true])
+    try {
+	    runInMillis(0, "_promiseTaskRunner", [overwrite:true, misfire: 'ignore'])
+    } catch (e) {
+        // shouldn't but sometimes errors
+        log.error "promise::Promise runInMillis(_promiseTaskRunner) errored: ${e}"
+    }
+//   }
     
     return [
 		then: _then,

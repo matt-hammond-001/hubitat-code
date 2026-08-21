@@ -42,8 +42,12 @@ class PromiseTests extends GroovyTestCase {
 
       p.runIn = { when, methodName, opts ->
          assertEquals(when,0)
-         assertEquals(opts?.misfire,true)
+         assertEquals(opts?.misfire,'ignore')
+         assertEquals(opts?.overwrite,true)
+         tasks.removeAll({ it == methodName })
          tasks.add(methodName) }
+
+      p.runInMillis = p.runIn
 
       // manually pump mock runIn() 
       pump = {
