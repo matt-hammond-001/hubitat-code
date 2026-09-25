@@ -443,7 +443,7 @@ void modbus_disconnect() {
         _modbus_clearTimeout "modbus_reconnect"
         _modbus_stop_keepAlive()
         state.connected = false
-     	interfaces.rawSocket.disconnect()
+     	interfaces.rawSocket.close()
         invoke "modbus_disconnected"
     } catch (e) {
 		_modbus_logError "Error trying to connect: ${e}"            
