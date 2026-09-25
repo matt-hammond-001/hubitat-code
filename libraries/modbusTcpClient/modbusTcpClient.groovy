@@ -383,15 +383,15 @@ def invoke(methodName, ...args) {
     try {
         return this."$methodName"(*args)
     } catch (MissingMethodException e) {
-        _modbus_logDebug "invoke() exception caught: ${e}"
-        if (e.getMethod() == methodName) {
-            _modbus_logWarn "No ${methodName}() method"
-	        return null
-        } else {
-	        throw e
-        }
+        _modbus_logError "invoke() exception caught: ${e}";
+//        if (e.getMethod() == methodName) {
+//            _modbus_logWarn "No ${methodName}() method";
+	        return null;
+//        } else {
+//	        throw e;
+//        }
     } catch (e) {
-        throw e
+        throw e;
     }
 }
 
