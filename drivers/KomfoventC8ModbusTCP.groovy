@@ -131,7 +131,8 @@ metadata {
          	[ name:"airQualityHumidityControl", description:"Humidity based control when in AUTO", type:"ENUM", constraints:enumEnabled.values],
          	[ name:"airQualityOutdoorHumidity", description:"Is there an outdoor humidity sensor?", type:"ENUM", constraints:enumSensor.values],
         ] 
-                
+        
+        attribute "connectionState", "enum", ["disconnected","connected"]
         attribute "tileStatus", "string"
         attribute "tileCmdSetMode", "string"
         
@@ -247,7 +248,7 @@ String makeCmdUrl(String cmd, String secondary) {
     }
 }
 
-String makeCmdHtmlCode(String cmd, List<String> values) {
+String makeCmdHtmlChoiceCode(String cmd, List<String> values) {
     String cmdUrl = makeCmdUrl(cmd, "\${this.selectedOptions[0].innerText}")
     return (cmdUrl == null) ? "Not in use. Need preference: Maker API Command URL" : (
          "<select class=\"_cmd_\" " +
@@ -268,8 +269,17 @@ def initialize() {
 	doInitialize()
     state.deviceId = device.getId()
 
- 	sendEvent(name:"tileCmdSetMode",  value:makeCmdHtmlCode("setMode", [ "away", "normal", "intensive", "boost", "auto","auto off" ]))
- 	sendEvent(name:"tileCmdSetPower", value:makeCmdHtmlCode("setPower", [ "off","on" ]))
+ 	sendEvent(name:"tileCmdSetMode",  value:makeCmdHtmlChoiceCode("setMode", [ "away", "normal", "intensive", "boost", "auto","auto off" ]))
+ 	sendEvent(name:"tileCmdSetPower", value:makeCmdHtmlChoiceCode("setPower", [ "off","on" ]))
+ /*
+Possible code to poll and retrieve
+setInterval(5000,() => {
+fetch("http://192.168.1.60/apps/api/171/devices/[Device ID]/attribute/[Attribute]?access_token=f3841322-7016-4ac3-be7b-db6434d885fc")
+.then(r => r.json().value
+})
+    
+
+*/
 }
 
 def updated() {
@@ -285,7 +295,7 @@ def refresh() {
 
 def uninstalled() { 
 	unschedule()
-    modbus_disconnect()
+    modbus_disconnect() 
 } 
 
  
@@ -409,13 +419,60 @@ def updateStatusTile() {
     def s = fetchChild("Supply", false)
     def e = fetchChild("Extract", false)
     def o = fetchChild("Outdoors", false)
+    def colours = [
+        dark: [
+            connected: [
+                house_outline: "#ddd",
+                house_fill: "#333",
+                box_outline: "#888",
+                box_fill: "#fff0",
+                cold: "#68f",
+                hot: "#f84",
+                text: "#fff",
+                text_alert: "#f88",
+            ],
+            disconnected: [
+                house_outline: "#ddd4",
+                house_fill: "#3334",
+                box_outline: "#8884",
+                box_fill: "#fff0",
+                cold: "#68f4",
+                hot: "#f844",
+                text: "#fff4",
+                text_alert: "#f88",
+            ],
+        ],
+        light: [
+            connected: [
+                house_outline: "#444",
+                house_fill: "#fff",
+                box_outline: "#bbb",
+                box_fill: "#fff0",
+                cold: "#8af",
+                hot: "#fa6",
+                text: "#000",
+                text_alert: "#f88",
+            ],
+            disconnected: [
+                house_outline: "#4444",
+                house_fill: "#fff4",
+                box_outline: "#bbb4",
+                box_fill: "#fff0",
+                cold: "#8af4",
+                hot: "#fa64",
+                text: "#000",
+                text_alert: "#f88",
+            ],
+        ],
+    ][settings.tileStyle][state.connected?"connected":"disconnected"];
 	String tileHtml = """<svg preserveAspectRatio=xMidYMid,meet xmlns="http://www.w3.org/2000/svg" viewBox=0,0,200,300 >""" +
-        """<style>text{font:15px sans-serif;text-anchor:middle;fill:#${settings.tileStyle=="dark"?"fff":"000"}}.r{fill:#f88}</style>""" +
-            """<path fill=#${settings.tileStyle=="dark"?"333":"fff"} stroke=#${settings.tileStyle=="dark"?"ddd":"444"} stroke-width=4 d=m100,20,90,80v190H10V100z />""" +
-                """<path fill=#${settings.tileStyle=="dark"?"68f":"8af"} d=m42,38,60,60-4,4-60-60m66,50,44-44-4-4,16-4-4,16-4-4-44,44 />""" +
-                    """<path fill=#${settings.tileStyle=="dark"?"f84":"fa6"} d=m102,98,44,44,4-4,2,14-14-2,4-4-44-44m-50,46,44-44,4,4-44,44 />""" +
-                """<path fill=#fff0 stroke=#${settings.tileStyle=="dark"?"888":"bbb"} stroke-width=2 d=M60,80h80v40H60z${p1==null?'':'M47,216h16v22H47z'}${p2==null?'':'M137,216h16v22h-16z'} />""" +
-//            """<text x=38 y=12>999 %RH</text>""" +                                      // outdoor humidity - not yet supported
+        """<style>text{font:15px sans-serif;text-anchor:middle;fill:${colours.text}}.r{fill:${colours.text_alert}}.l{font-size:30px}</style>""" +
+            """<path fill=${colours.house_fill} stroke=${colours.house_outline} stroke-width=4 d=m100,20,90,80v190H10V100z />""" +
+                """<path fill=${colours.cold} d=m42,38,60,60-4,4-60-60m66,50,44-44-4-4,16-4-4,16-4-4-44,44 />""" +
+                    """<path fill=${colours.hot} d=m102,98,44,44,4-4,2,14-14-2,4-4-44-44m-50,46,44-44,4,4-44,44 />""" +
+        """<path fill=${colours.box_fill} stroke=${colours.box_outline} stroke-width=2 d=M60,80h80v40H60z${p1==null?'':'M47,216h16v22H47z'}${p2==null?'':'M137,216h16v22h-16z'} />""" +
+        (state.connected ? (
+            //            """<text x=38 y=12>999 %RH</text>""" +                                      // outdoor humidity - not yet supported
             """<text x=38 y=30>${o.currentValue("temperature")?:"---"} °C</text>""" +     // outdoor temperature
             """<text x=54 y=172>${e.currentValue("temperature")?:"---"} °C</text>""" +    // extract temperature
             """<text x=54 y=190>${e.currentValue("flowRate")?:"---"} m³/h</text>""" +
@@ -432,8 +489,12 @@ def updateStatusTile() {
                 """<text x=145 y=272>${p2.currentValue("humidity")?:"---"} %RH</text>"""
             )) +
 	        """<text x=100 y=66${device.currentValue("filterStatus")=="replace"?' class=r ':''}>▨ ${device.currentValue("filterImpurity")?:"---"}%</text>""" +
-            """<text x=100 y=146>♻︎ ${device.currentValue("heatExchanger")?:"---"}%</text>""" +
-            "</svg>";
+            """<text x=100 y=146>♻︎ ${device.currentValue("heatExchanger")?:"---"}%</text>"""
+        ) : (
+            "<text x=100 y=170 class=\"l r\">Not</text>" +
+            "<text x=100 y=205 class=\"l r\">connected</text>"
+        )) +
+        "</svg>";
     logDebug "Updating tile HTML. Length=${tileHtml.getBytes().size()}"
     sendEvent(
         name:"tileStatus",
@@ -483,11 +544,24 @@ def disconnect() {
 }
 
 def modbus_connected() {
-	logDebug "Connected"
+    updateConnectedState();
 }
 
 def modbus_disconnected() {
-	logDebug "Disconnected"
+    updateConnectedState();
+}
+
+
+def updateConnectedState() {
+    if (state.connected) {
+        logDebug "Connected"
+	    sendEvent name:"connectionState", value:"connected";
+        updateChild "Connected", [name:"switch", value:"on"]
+    } else {
+        logDebug "Disconnected"
+	    sendEvent name:"connectionState", value:"disconnected";
+        updateChild "Connected", [name:"switch", value:"off"]
+    }
 }
 
 /*
@@ -629,6 +703,11 @@ def fetchChild(String childName, boolean create=true) {
 		String deviceType
         List<Map> defaultValues = []
         switch (childName) {
+            case "Connected":
+                namespace = "hubitat"
+                deviceType = "Generic Component Switch"
+            	defaultValues += [[name:"switch", value:state.connected?"on":"off"]]
+            	break
             case "Panel 1":
             case "Panel 2":
             	namespace = "hubitat"
@@ -670,8 +749,11 @@ def updateChild(String name, ...updates) {
     
 void componentRefresh(cd){
 	def childName = cd.deviceNetworkId.substring("${device.id}-".size())
-    logDebug("received refresh request from ${childName}")
+    logDebug("received REFRESH request from ${childName}")
     switch (childName) {
+        case "Connected":
+            updateConnectedState();
+            break
      	case "Panel 1":
         case "Panel 2":
         case "Supply":
@@ -679,6 +761,24 @@ void componentRefresh(cd){
         case "Outdoors":
         	pollMonitoring()
         	break
+    }
+}
+
+void componentOn(cd){
+	def childName = cd.deviceNetworkId.substring("${device.id}-".size())
+    logDebug("received ON request from ${childName}")
+    if (!state?.connected) {
+    	logDebug(" ... calling initialize()")
+ 		initialize()
+    }
+}
+
+void componentOff(cd){
+	def childName = cd.deviceNetworkId.substring("${device.id}-".size())
+    logDebug("received OFF request from ${childName}")
+    if (state?.connected) {
+	    logDebug("... calling disconnect()")
+ 		disconnect()
     }
 }
 
