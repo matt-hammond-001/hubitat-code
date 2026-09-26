@@ -371,7 +371,7 @@ def rebuildTile(String childDni, List openPeriods) {
         "._csLog i{background-color:#662;border-radius:0.6em;padding:0.1em 0.5em;font-style:normal;}" +
         "._csLog b,._csLog i{white-space:nowrap;}" +
         "</style>" +
-    "<div class=\"doorlog\">"
+    "<div class=\"_csLog\">"
     String postfix = "</div>"
     String body = entries.collect{date,times -> "<p><b>${date}:</b> ${times.join(" ")}"}.join("");
     int maxBodyLen = 1024 - prefix.size() - postfix.size()
