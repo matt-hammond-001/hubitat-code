@@ -197,7 +197,8 @@ def ensureLogsAndChildren(Map options=[:]) {
     }
 
     // go through state.contactSensorLogs and delete any not expected
-    state.contactSensorLogs.removeAll { key,value -> !sensorDefaults.containsKey(key) }
+    def keysToDelete = state.contactSensorLogs.keySet().findAll { key -> !sensorDefaults.containsKey(key) }
+    keysToDelete.each { key -> state.contactSensorLogs.remove(key) }
     
     // go through and ensure each log we expect exists and has correct metadata and log size
     sensorDefaults.each { sensorId, defaults ->
