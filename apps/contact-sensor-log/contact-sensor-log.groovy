@@ -90,6 +90,13 @@ def mainPage() {
                 width: 4,
                 defaultValue: 10
             
+            input "pillColour",
+                "color",
+                title: "Tile time lozenge colour",
+                required: true,
+                submitOnChange: true,
+                defaultValue: "#666622"
+            
             input "rebuildTiles",
                 "button",
                 title: "Rebuild tiles"
@@ -369,7 +376,7 @@ def rebuildTile(String childDni, List openPeriods) {
         ".tile-primary:has(._csLog){vertical-align:top;}" +
         "._csLog {width:calc(100% - 16px);height:100%;overflow-y:scroll;position:absolute;}" +
         "._csLog p{text-align:left;white-space:normal;line-height:2em;margin:0.5em;font-size:0.8em;font-style:normal;}" +
-        "._csLog i{background-color:#662;border-radius:0.6em;padding:0.1em 0.5em;font-style:normal;}" +
+        "._csLog i{background-color:${settings.pillColour};border-radius:0.6em;padding:0.1em 0.5em;font-style:normal;}" +
         "._csLog b,._csLog i{white-space:nowrap;}" +
         "</style>" +
     "<div class=\"_csLog\">"
